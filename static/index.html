@@ -507,6 +507,10 @@
                     <option value="50">50</option>
                     <option value="100">100</option>
                 </select>
+                <label style="margin-left: 15px;">
+                    <input type="checkbox" id="search-despam" checked style="margin-right: 5px;">
+                    Despam
+                </label>
             </div>
             <div id="search-results" class="results"></div>
         </div>
@@ -678,12 +682,13 @@
 
             const contentType = document.getElementById('search-type').value;
             const topK = parseInt(document.getElementById('search-limit').value);
+            const despam = document.getElementById('search-despam').checked;
 
             try {
                 const res = await fetch(`${API_BASE}/search`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({query, top_k: topK, content_type: contentType || null})
+                    body: JSON.stringify({query, top_k: topK, content_type: contentType || null, despam})
                 });
 
                 const results = await res.json();

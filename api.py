@@ -87,6 +87,7 @@ class SearchRequest(BaseModel):
     query: str
     top_k: int = 10
     content_type: Optional[str] = None  # 'post', 'comment', or None for both
+    despam: bool = True  # Filter out spam and duplicates by default
 
 class SearchResult(BaseModel):
     similarity: float
@@ -175,6 +176,12 @@ async def search(request: SearchRequest):
         if request.content_type not in ('post', 'comment'):
             raise HTTPException(status_code=400, detail="content_type must be 'post' or 'comment'")
 
+    # Load spam scores if despam is enabled
+    spam_scores = {}
+    if request.despam:
+        cursor.execute("SELECT content_id, spam_score FROM spam_scores WHERE spam_score >= 50")
+        spam_scores = {row[0]: row[1] for row in cursor.fetchall()}
+
     # Build query with parameterized WHERE clause
     sql = """
         SELECT e.content_id, e.content_type, e.embedding,
@@ -195,7 +202,11 @@ async def search(request: SearchRequest):
     results = []
     for row in cursor.fetchall():
         content_id, content_type, embedding_bytes = row[0], row[1], row[2]
-        
+
+        # Skip high-spam content if despam is enabled
+        if request.despam and content_id in spam_scores:
+            continue
+
         if content_type == 'post':
             # For posts: title=row[3], content=row[4], author=row[6], upvotes=row[7], created_at=row[8]
             title, content = row[3], row[4]
@@ -204,7 +215,7 @@ async def search(request: SearchRequest):
             # For comments: no title, content=row[5], author=row[9], upvotes=row[10], created_at=row[11]
             title, content = None, row[5]
             author, upvotes, created_at = row[9], row[10], row[11]
-        
+
         if not content:
             continue
         
@@ -236,9 +247,22 @@ async def search(request: SearchRequest):
         ))
     
     conn.close()
-    
+
     # Sort by similarity
     results.sort(key=lambda x: x.similarity, reverse=True)
+
+    # Deduplicate when despam is enabled
+    if request.despam:
+        seen_content = set()
+        deduplicated = []
+        for r in results:
+            # Create a content fingerprint (normalize whitespace, lowercase)
+            content_key = ' '.join(r.content.lower().split())[:200]
+            if content_key not in seen_content:
+                seen_content.add(content_key)
+                deduplicated.append(r)
+        results = deduplicated
+
     return results[:request.top_k]
 
 @app.get("/api/similar/{post_id}", response_model=List[SearchResult])
@@ -744,7 +768,16 @@ async def export_search(
 
     conn.close()
     results.sort(key=lambda x: x['similarity'], reverse=True)
-    results = results[:top_k]
+
+    # Deduplicate: keep only the first (highest similarity) result for each unique content
+    seen_content = set()
+    deduplicated = []
+    for r in results:
+        content_key = ' '.join(r['content'].lower().split())[:200]
+        if content_key not in seen_content:
+            seen_content.add(content_key)
+            deduplicated.append(r)
+    results = deduplicated[:top_k]
 
     if format == "csv":
         output = io.StringIO()
