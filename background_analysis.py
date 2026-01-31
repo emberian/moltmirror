@@ -22,6 +22,58 @@ except ImportError:
     EMBEDDINGS_AVAILABLE = False
     def generate_embeddings(): pass
 
+# Import IC-grade analysis modules
+try:
+    from analysis.matrices import build_all_matrices
+    MATRICES_AVAILABLE = True
+except ImportError:
+    MATRICES_AVAILABLE = False
+    def build_all_matrices(): return {'error': 'not available'}
+
+try:
+    from analysis.fingerprints import compute_all_fingerprints
+    FINGERPRINTS_AVAILABLE = True
+except ImportError:
+    FINGERPRINTS_AVAILABLE = False
+    def compute_all_fingerprints(): return {'error': 'not available'}
+
+try:
+    from analysis.coordination import run_all_coordination_detection
+    COORDINATION_AVAILABLE = True
+except ImportError:
+    COORDINATION_AVAILABLE = False
+    def run_all_coordination_detection(): return {'error': 'not available'}
+
+try:
+    from analysis.graphs import compute_all_graph_metrics, detect_communities
+    GRAPHS_AVAILABLE = True
+except ImportError:
+    GRAPHS_AVAILABLE = False
+    def compute_all_graph_metrics(): return {'error': 'not available'}
+    def detect_communities(): return {'error': 'not available'}
+
+try:
+    from analysis.temporal import run_all_temporal_analysis
+    TEMPORAL_AVAILABLE = True
+except ImportError:
+    TEMPORAL_AVAILABLE = False
+    def run_all_temporal_analysis(): return {'error': 'not available'}
+
+try:
+    from analysis.narratives import run_all_narrative_analysis
+    NARRATIVES_AVAILABLE = True
+except ImportError:
+    NARRATIVES_AVAILABLE = False
+    def run_all_narrative_analysis(): return {'error': 'not available'}
+
+try:
+    from analysis.alerts import run_all_alert_generation, get_alert_summary
+    ALERTS_AVAILABLE = True
+except ImportError:
+    ALERTS_AVAILABLE = False
+    def run_all_alert_generation(): return {'error': 'not available'}
+    def get_alert_summary(): return {'error': 'not available'}
+
 DB_PATH = Path(os.getenv("MOLTMIRROR_DB_PATH", "analysis.db"))
 INSIGHTS_PATH = Path("insights_cache.json")
 
@@ -703,6 +755,62 @@ class BackgroundAnalyzer:
             'analyzed_at': datetime.now().isoformat()
         }
 
+    # IC-Grade Analysis Methods
+
+    def build_matrices(self) -> Dict:
+        """Build sparse matrix infrastructure"""
+        if not MATRICES_AVAILABLE:
+            return {'status': 'not_available'}
+        return build_all_matrices()
+
+    def compute_fingerprints(self) -> Dict:
+        """Compute behavioral fingerprints for all agents"""
+        if not FINGERPRINTS_AVAILABLE:
+            return {'status': 'not_available'}
+        return compute_all_fingerprints()
+
+    def detect_coordination(self) -> Dict:
+        """Run all coordination detection algorithms"""
+        if not COORDINATION_AVAILABLE:
+            return {'status': 'not_available'}
+        return run_all_coordination_detection()
+
+    def compute_graph_metrics(self) -> Dict:
+        """Compute graph centrality metrics"""
+        if not GRAPHS_AVAILABLE:
+            return {'status': 'not_available'}
+        return compute_all_graph_metrics()
+
+    def detect_graph_communities(self) -> Dict:
+        """Detect communities in the interaction graph"""
+        if not GRAPHS_AVAILABLE:
+            return {'status': 'not_available'}
+        return detect_communities()
+
+    def run_temporal_analysis(self) -> Dict:
+        """Run temporal analysis (bursts, correlations)"""
+        if not TEMPORAL_AVAILABLE:
+            return {'status': 'not_available'}
+        return run_all_temporal_analysis()
+
+    def run_narrative_analysis(self) -> Dict:
+        """Run narrative identification and propagation analysis"""
+        if not NARRATIVES_AVAILABLE:
+            return {'status': 'not_available'}
+        return run_all_narrative_analysis()
+
+    def generate_alerts(self) -> Dict:
+        """Generate coordination alerts from all sources"""
+        if not ALERTS_AVAILABLE:
+            return {'status': 'not_available'}
+        return run_all_alert_generation()
+
+    def get_alert_overview(self) -> Dict:
+        """Get alert summary"""
+        if not ALERTS_AVAILABLE:
+            return {'status': 'not_available'}
+        return get_alert_summary()
+
     def map_topic_relationships(self) -> Dict:
         """Build a graph of topic co-occurrences"""
         conn = self.get_db()
@@ -792,7 +900,8 @@ class BackgroundAnalyzer:
             'new_posts': 0,
             'new_comments': 0,
             'errors': [],
-            'synced_at': datetime.now().isoformat()
+            'synced_at': datetime.now().isoformat(),
+            'proxy_used': False
         }
 
         conn = self.get_db()
@@ -803,13 +912,21 @@ class BackgroundAnalyzer:
         known_posts = {row[0] for row in cursor.fetchall()}
 
         try:
-            # Synchronous HTTP requests (simpler than async in background thread)
-            import requests
+            # Use proxy-configured session if available
+            try:
+                from scraper.proxy_config import create_requests_session, get_proxy_status
+                session = create_requests_session()
+                proxy_status = get_proxy_status()
+                sync_result['proxy_used'] = proxy_status['configured']
+            except ImportError:
+                import requests
+                session = requests.Session()
+                session.headers.update({
+                    'User-Agent': 'MoltmirrorSync/1.0',
+                    'Accept': 'application/json',
+                })
 
-            headers = {
-                'User-Agent': 'MoltmirrorSync/1.0',
-                'Accept': 'application/json',
-            }
+            headers = session.headers
 
             # Fetch recent posts
             new_posts = []
@@ -818,9 +935,8 @@ class BackgroundAnalyzer:
 
             while consecutive_known < 3 and offset < 500:
                 try:
-                    resp = requests.get(
+                    resp = session.get(
                         f"{BASE_URL}/api/v1/posts?sort=new&offset={offset}",
-                        headers=headers,
                         timeout=30
                     )
                     if resp.status_code != 200:
@@ -882,9 +998,8 @@ class BackgroundAnalyzer:
             # Fetch comments for new posts
             for post in new_posts[:50]:  # Limit to avoid too many requests
                 try:
-                    resp = requests.get(
+                    resp = session.get(
                         f"{BASE_URL}/api/v1/posts/{post['id']}",
-                        headers=headers,
                         timeout=30
                     )
                     if resp.status_code == 200:
@@ -1023,8 +1138,9 @@ class BackgroundAnalyzer:
     def run_analysis_cycle(self):
         """Run one full analysis cycle"""
         print(f"[{datetime.now().isoformat()}] Starting analysis cycle...")
-        
+
         analyses = [
+            # Original analyses
             ('sync_status', self.sync_new_content, 30),  # Sync every 30 min
             ('trending_agents', self.analyze_trending_agents, 15),
             ('conversation_clusters', self.analyze_conversation_clusters, 30),
@@ -1036,6 +1152,16 @@ class BackgroundAnalyzer:
             ('spam_scores', self.compute_spam_scores, 30),
             ('author_influence', self.analyze_author_influence, 45),
             ('topic_graph', self.map_topic_relationships, 30),
+            # IC-Grade analyses
+            ('ic_matrices', self.build_matrices, 120),  # Heavy, run every 2 hours
+            ('ic_fingerprints', self.compute_fingerprints, 60),  # Medium, every hour
+            ('ic_coordination', self.detect_coordination, 30),  # Important, every 30 min
+            ('ic_graph_metrics', self.compute_graph_metrics, 90),  # Medium
+            ('ic_communities', self.detect_graph_communities, 60),
+            ('ic_temporal', self.run_temporal_analysis, 45),
+            ('ic_narratives', self.run_narrative_analysis, 120),  # Heavy
+            ('ic_alerts', self.generate_alerts, 10),  # Frequent, lightweight
+            ('ic_alert_summary', self.get_alert_overview, 10),
         ]
         
         for name, func, interval in analyses:

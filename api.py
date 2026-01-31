@@ -23,6 +23,61 @@ try:
 except ImportError:
     BACKGROUND_AVAILABLE = False
 
+# Import IC-grade analysis modules
+try:
+    from analysis.coordination import (
+        detect_sockpuppets, detect_synchronized_posting,
+        detect_coordination_clusters, get_sockpuppet_network
+    )
+    COORDINATION_AVAILABLE = True
+except ImportError:
+    COORDINATION_AVAILABLE = False
+
+try:
+    from analysis.fingerprints import (
+        compute_fingerprint, save_fingerprint, load_fingerprint,
+        compare_authors, find_similar_agents, detect_behavior_change
+    )
+    FINGERPRINTS_AVAILABLE = True
+except ImportError:
+    FINGERPRINTS_AVAILABLE = False
+
+try:
+    from analysis.graphs import (
+        get_top_influencers, find_bridges, find_cliques, detect_communities,
+        get_author_network_position, get_graph_summary
+    )
+    GRAPHS_AVAILABLE = True
+except ImportError:
+    GRAPHS_AVAILABLE = False
+
+try:
+    from analysis.temporal import (
+        detect_activity_bursts, find_correlated_pairs,
+        compute_circadian_profile, get_activity_heatmap
+    )
+    TEMPORAL_AVAILABLE = True
+except ImportError:
+    TEMPORAL_AVAILABLE = False
+
+try:
+    from analysis.narratives import (
+        identify_narratives, get_narrative_timeline,
+        detect_coordinated_pushes, classify_narrative_roles
+    )
+    NARRATIVES_AVAILABLE = True
+except ImportError:
+    NARRATIVES_AVAILABLE = False
+
+try:
+    from analysis.alerts import (
+        get_active_alerts, get_alert_summary, get_high_risk_authors,
+        compute_author_risk_score, get_author_alert_history, resolve_alert
+    )
+    ALERTS_AVAILABLE = True
+except ImportError:
+    ALERTS_AVAILABLE = False
+
 # Try to import sentence-transformers
 try:
     from sentence_transformers import SentenceTransformer
@@ -836,7 +891,280 @@ async def export_agent(author_name: str, format: str = "json"):
 
     return {'author': author_name, 'posts': posts, 'total': len(posts)}
 
+# ============================================================================
+# IC-Grade Coordination Detection Endpoints
+# ============================================================================
+
+@app.get("/api/insights/coordination")
+async def get_coordination_alerts():
+    """Get all coordination alerts"""
+    if not ALERTS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Alerts module not available")
+    return get_active_alerts(limit=50)
+
+@app.get("/api/insights/coordination/summary")
+async def get_coordination_summary():
+    """Get coordination alert summary"""
+    if not ALERTS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Alerts module not available")
+    return get_alert_summary()
+
+@app.get("/api/insights/sockpuppets")
+async def get_sockpuppets():
+    """Get sockpuppet candidates"""
+    if not COORDINATION_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Coordination module not available")
+    try:
+        candidates = detect_sockpuppets()
+        return {'candidates': candidates[:30], 'total': len(candidates)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/insights/sockpuppet-network")
+async def get_sockpuppet_network_data():
+    """Get sockpuppet network for visualization"""
+    if not COORDINATION_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Coordination module not available")
+    return get_sockpuppet_network()
+
+@app.get("/api/insights/synchronized-posting")
+async def get_synchronized_posting():
+    """Get synchronized posting groups"""
+    if not COORDINATION_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Coordination module not available")
+    try:
+        groups = detect_synchronized_posting()
+        return {'groups': groups, 'total': len(groups)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/insights/clusters")
+async def get_coordination_clusters():
+    """Get coordination clusters"""
+    if not COORDINATION_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Coordination module not available")
+    try:
+        clusters = detect_coordination_clusters()
+        return {'clusters': clusters, 'total': len(clusters)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============================================================================
+# Behavioral Fingerprint Endpoints
+# ============================================================================
+
+@app.get("/api/agent/{author_name}/fingerprint")
+async def get_agent_fingerprint(author_name: str):
+    """Get behavioral fingerprint for an agent"""
+    if not FINGERPRINTS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Fingerprints module not available")
+
+    fp = load_fingerprint(author_name)
+    if not fp:
+        # Compute on demand
+        try:
+            fp_vec = compute_fingerprint(author_name)
+            save_fingerprint(author_name, fp_vec)
+            return {
+                'author': author_name,
+                'dimensions': len(fp_vec),
+                'computed': True,
+                'norm': float(np.linalg.norm(fp_vec))
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    fingerprint, computed_at, sample_size = fp
+    return {
+        'author': author_name,
+        'dimensions': len(fingerprint),
+        'computed_at': computed_at.isoformat(),
+        'sample_size': sample_size,
+        'norm': float(np.linalg.norm(fingerprint))
+    }
+
+@app.get("/api/agent/{author_name}/behavior-history")
+async def get_agent_behavior_history(author_name: str):
+    """Get behavior change history for an agent"""
+    if not FINGERPRINTS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Fingerprints module not available")
+    return detect_behavior_change(author_name)
+
+@app.get("/api/agent/{author_name}/similar")
+async def get_similar_agents(author_name: str, limit: int = 10):
+    """Get agents similar to a given agent"""
+    if not FINGERPRINTS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Fingerprints module not available")
+    try:
+        similar = find_similar_agents(author_name, top_k=limit)
+        return {
+            'author': author_name,
+            'similar': [{'author': a, 'similarity': s} for a, s in similar]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class FingerprintCompareRequest(BaseModel):
+    author1: str
+    author2: str
+
+@app.post("/api/compare-fingerprints")
+async def compare_fingerprints(request: FingerprintCompareRequest):
+    """Compare fingerprints of two agents"""
+    if not FINGERPRINTS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Fingerprints module not available")
+    return compare_authors(request.author1, request.author2)
+
+# ============================================================================
+# Graph Analytics Endpoints
+# ============================================================================
+
+@app.get("/api/insights/graph-metrics")
+async def get_graph_metrics_overview():
+    """Get graph centrality metrics"""
+    if not GRAPHS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Graphs module not available")
+    return {
+        'pagerank': get_top_influencers('pagerank', 20),
+        'betweenness': get_top_influencers('betweenness', 20),
+        'eigenvector': get_top_influencers('eigenvector', 20),
+        'summary': get_graph_summary()
+    }
+
+@app.get("/api/insights/communities")
+async def get_communities():
+    """Get detected communities"""
+    if not GRAPHS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Graphs module not available")
+    return detect_communities()
+
+@app.get("/api/insights/bridges")
+async def get_bridge_agents():
+    """Get bridge agents between communities"""
+    if not GRAPHS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Graphs module not available")
+    return find_bridges()
+
+@app.get("/api/insights/cliques")
+async def get_cliques():
+    """Get tight coordination groups (cliques)"""
+    if not GRAPHS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Graphs module not available")
+    return find_cliques()
+
+@app.get("/api/agent/{author_name}/network-position")
+async def get_network_position(author_name: str):
+    """Get network position metrics for an agent"""
+    if not GRAPHS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Graphs module not available")
+    return get_author_network_position(author_name)
+
+# ============================================================================
+# Temporal Analysis Endpoints
+# ============================================================================
+
+@app.get("/api/agent/{author_name}/activity-pattern")
+async def get_activity_pattern(author_name: str):
+    """Get temporal activity pattern for an agent"""
+    if not TEMPORAL_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Temporal module not available")
+    return get_activity_heatmap(author_name)
+
+@app.get("/api/agent/{author_name}/circadian")
+async def get_circadian(author_name: str):
+    """Get circadian profile for an agent"""
+    if not TEMPORAL_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Temporal module not available")
+    return compute_circadian_profile(author_name)
+
+@app.get("/api/insights/correlated-pairs")
+async def get_correlated_activity_pairs():
+    """Get pairs of agents with correlated activity"""
+    if not TEMPORAL_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Temporal module not available")
+    return find_correlated_pairs()
+
+@app.get("/api/insights/bursts")
+async def get_activity_bursts():
+    """Get detected activity bursts"""
+    if not TEMPORAL_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Temporal module not available")
+    return detect_activity_bursts()
+
+# ============================================================================
+# Narrative Analysis Endpoints
+# ============================================================================
+
+@app.get("/api/insights/narratives")
+async def get_narratives():
+    """Get identified narratives"""
+    if not NARRATIVES_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Narratives module not available")
+    try:
+        narratives = identify_narratives()
+        return {'narratives': narratives, 'total': len(narratives)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/narrative/{narrative_id}")
+async def get_narrative_detail(narrative_id: str):
+    """Get narrative propagation details"""
+    if not NARRATIVES_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Narratives module not available")
+    timeline = get_narrative_timeline(narrative_id)
+    roles = classify_narrative_roles(narrative_id)
+    return {'timeline': timeline, 'roles': roles}
+
+@app.get("/api/insights/coordinated-pushes")
+async def get_coordinated_pushes():
+    """Get coordinated narrative pushes"""
+    if not NARRATIVES_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Narratives module not available")
+    try:
+        pushes = detect_coordinated_pushes()
+        return {'pushes': pushes, 'total': len(pushes)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============================================================================
+# Risk & Anomaly Endpoints
+# ============================================================================
+
+@app.get("/api/agent/{author_name}/anomaly-score")
+async def get_agent_anomaly_score(author_name: str):
+    """Get overall risk/anomaly score for an agent"""
+    if not ALERTS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Alerts module not available")
+    return compute_author_risk_score(author_name)
+
+@app.get("/api/agent/{author_name}/alerts")
+async def get_agent_alerts(author_name: str):
+    """Get alert history for an agent"""
+    if not ALERTS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Alerts module not available")
+    return get_author_alert_history(author_name)
+
+@app.get("/api/insights/high-risk-agents")
+async def get_risky_agents():
+    """Get agents with highest risk scores"""
+    if not ALERTS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Alerts module not available")
+    return get_high_risk_authors()
+
+@app.post("/api/admin/resolve-alert/{alert_id}", dependencies=[Depends(verify_admin_key)])
+async def admin_resolve_alert(alert_id: int, notes: str = ""):
+    """Resolve an alert (admin only)"""
+    if not ALERTS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Alerts module not available")
+    success = resolve_alert(alert_id, notes)
+    if not success:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return {"status": "resolved", "alert_id": alert_id}
+
+# ============================================================================
 # Health check with background status
+# ============================================================================
+
 @app.get("/api/health")
 async def health_check():
     if not BACKGROUND_AVAILABLE:

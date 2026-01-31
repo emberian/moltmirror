@@ -477,6 +477,7 @@
 
         <div class="tabs">
             <div class="tab active" onclick="showTab('search', this)">Search</div>
+            <div class="tab" onclick="showTab('coordination', this)">Coordination</div>
             <div class="tab" onclick="showTab('insights', this)">Insights</div>
             <div class="tab" onclick="showTab('topic-graph', this)">Topic Graph</div>
             <div class="tab" onclick="showTab('compare', this)">Compare</div>
@@ -513,6 +514,78 @@
                 </label>
             </div>
             <div id="search-results" class="results"></div>
+        </div>
+
+        <!-- Coordination Tab (IC-Grade) -->
+        <div id="coordination-tab" class="search-section" style="display:none">
+            <h2>IC-Grade Coordination Detection</h2>
+            <p style="color: #8b949e; margin-bottom: 15px;">Detect coordinated inauthentic behavior, sockpuppets, and influence operations</p>
+
+            <div id="coordination-alert-summary" style="margin-bottom: 20px;"></div>
+
+            <div class="insight-grid">
+                <div class="insight-card" onclick="loadCoordinationInsight('alerts')">
+                    <h3>Active Alerts</h3>
+                    <p>Coordination alerts by severity</p>
+                    <div class="insight-preview" id="coord-alerts-preview">Click to load...</div>
+                </div>
+
+                <div class="insight-card" onclick="loadCoordinationInsight('sockpuppets')">
+                    <h3>Sockpuppet Detection</h3>
+                    <p>Likely same-entity accounts</p>
+                    <div class="insight-preview" id="coord-sockpuppets-preview">Click to load...</div>
+                </div>
+
+                <div class="insight-card" onclick="loadCoordinationInsight('synchronized')">
+                    <h3>Synchronized Posting</h3>
+                    <p>Coordinated content timing</p>
+                    <div class="insight-preview" id="coord-synchronized-preview">Click to load...</div>
+                </div>
+
+                <div class="insight-card" onclick="loadCoordinationInsight('clusters')">
+                    <h3>Coordination Clusters</h3>
+                    <p>Detected coordination groups</p>
+                    <div class="insight-preview" id="coord-clusters-preview">Click to load...</div>
+                </div>
+
+                <div class="insight-card" onclick="loadCoordinationInsight('bursts')">
+                    <h3>Activity Bursts</h3>
+                    <p>Unusual activity spikes</p>
+                    <div class="insight-preview" id="coord-bursts-preview">Click to load...</div>
+                </div>
+
+                <div class="insight-card" onclick="loadCoordinationInsight('narratives')">
+                    <h3>Narrative Tracking</h3>
+                    <p>Coordinated narrative pushes</p>
+                    <div class="insight-preview" id="coord-narratives-preview">Click to load...</div>
+                </div>
+
+                <div class="insight-card" onclick="loadCoordinationInsight('communities')">
+                    <h3>Communities</h3>
+                    <p>Network community detection</p>
+                    <div class="insight-preview" id="coord-communities-preview">Click to load...</div>
+                </div>
+
+                <div class="insight-card" onclick="loadCoordinationInsight('bridges')">
+                    <h3>Bridge Agents</h3>
+                    <p>Cross-community connectors</p>
+                    <div class="insight-preview" id="coord-bridges-preview">Click to load...</div>
+                </div>
+
+                <div class="insight-card" onclick="loadCoordinationInsight('high-risk')">
+                    <h3>High-Risk Agents</h3>
+                    <p>Agents with anomaly scores</p>
+                    <div class="insight-preview" id="coord-risk-preview">Click to load...</div>
+                </div>
+            </div>
+
+            <div id="coordination-detail" class="results" style="margin-top: 25px;"></div>
+
+            <!-- Sockpuppet Network Visualization -->
+            <div id="sockpuppet-network-container" style="display: none; margin-top: 25px;">
+                <h3 style="color: #e01b24; margin-bottom: 15px;">Sockpuppet Network</h3>
+                <div id="sockpuppet-graph" style="width: 100%; height: 400px; background: #0d1117; border: 1px solid #30363d; border-radius: 8px;"></div>
+            </div>
         </div>
 
         <!-- Insights Tab -->
@@ -656,7 +729,7 @@
             }
 
             // Hide all tabs
-            const tabs = ['search', 'insights', 'topic-graph', 'compare', 'trends', 'agents', 'agent-profile', 'status'];
+            const tabs = ['search', 'coordination', 'insights', 'topic-graph', 'compare', 'trends', 'agents', 'agent-profile', 'status'];
             tabs.forEach(t => {
                 const el = document.getElementById(`${t}-tab`);
                 if (el) el.style.display = 'none';
@@ -669,6 +742,11 @@
             // Auto-load status when switching to status tab
             if (tab === 'status') {
                 loadStatus();
+            }
+
+            // Auto-load coordination summary when switching to coordination tab
+            if (tab === 'coordination') {
+                loadCoordinationSummary();
             }
         }
 
@@ -1455,9 +1533,404 @@
             if (e.key === 'Enter') doTrends();
         });
 
+        // ========================================
+        // Coordination Detection Functions
+        // ========================================
+
+        async function loadCoordinationSummary() {
+            const container = document.getElementById('coordination-alert-summary');
+
+            try {
+                const res = await fetch(`${API_BASE}/insights/coordination/summary`);
+                if (!res.ok) {
+                    container.innerHTML = '<div style="color: #8b949e;">Coordination analysis not yet available</div>';
+                    return;
+                }
+
+                const data = await res.json();
+
+                container.innerHTML = `
+                    <div class="stats" style="margin-bottom: 0;">
+                        <div class="stat-card">
+                            <div class="stat-number" style="color: #f85149;">${data.critical_count || 0}</div>
+                            <div class="stat-label">Critical</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" style="color: #f0883e;">${data.high_count || 0}</div>
+                            <div class="stat-label">High</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">${data.total_active || 0}</div>
+                            <div class="stat-label">Total Active</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">${data.new_24h || 0}</div>
+                            <div class="stat-label">New (24h)</div>
+                        </div>
+                    </div>
+                `;
+            } catch (e) {
+                container.innerHTML = '<div style="color: #8b949e;">Coordination module loading...</div>';
+            }
+        }
+
+        async function loadCoordinationInsight(type) {
+            const detailContainer = document.getElementById('coordination-detail');
+            detailContainer.innerHTML = '<div class="loading">Loading...</div>';
+
+            try {
+                let endpoint = '';
+                switch(type) {
+                    case 'alerts': endpoint = '/insights/coordination'; break;
+                    case 'sockpuppets': endpoint = '/insights/sockpuppets'; break;
+                    case 'synchronized': endpoint = '/insights/synchronized-posting'; break;
+                    case 'clusters': endpoint = '/insights/clusters'; break;
+                    case 'bursts': endpoint = '/insights/bursts'; break;
+                    case 'narratives': endpoint = '/insights/coordinated-pushes'; break;
+                    case 'communities': endpoint = '/insights/communities'; break;
+                    case 'bridges': endpoint = '/insights/bridges'; break;
+                    case 'high-risk': endpoint = '/insights/high-risk-agents'; break;
+                    default: throw new Error('Unknown type');
+                }
+
+                const res = await fetch(`${API_BASE}${endpoint}`);
+                if (!res.ok) throw new Error('Not available');
+
+                const data = await res.json();
+                displayCoordinationDetail(type, data);
+
+                // Show sockpuppet network if applicable
+                if (type === 'sockpuppets') {
+                    loadSockpuppetNetwork();
+                } else {
+                    document.getElementById('sockpuppet-network-container').style.display = 'none';
+                }
+
+            } catch (e) {
+                detailContainer.innerHTML = `<div class="error">Error: ${e.message}</div>`;
+            }
+        }
+
+        function displayCoordinationDetail(type, data) {
+            const container = document.getElementById('coordination-detail');
+            let html = '';
+
+            switch(type) {
+                case 'alerts':
+                    html = '<h3>Active Coordination Alerts</h3><div class="results">';
+                    (Array.isArray(data) ? data : []).forEach(alert => {
+                        const severityColor = alert.severity === 'critical' ? '#f85149' :
+                                             alert.severity === 'high' ? '#f0883e' :
+                                             alert.severity === 'medium' ? '#d29922' : '#8b949e';
+                        html += `
+                            <div class="result-item">
+                                <div class="result-header">
+                                    <span class="result-type" style="background: ${severityColor};">${alert.severity?.toUpperCase()}</span>
+                                    <span>${alert.type}</span>
+                                    <span style="color: #8b949e;">${(alert.confidence * 100).toFixed(0)}% conf</span>
+                                </div>
+                                <div style="margin-top: 8px; color: #8b949e; font-size: 13px;">
+                                    Authors: ${alert.authors?.slice(0, 5).map(a => `<span class="result-author" onclick="loadAgentProfile('${escapeHtml(a)}')">${escapeHtml(a)}</span>`).join(', ')}
+                                    ${alert.authors?.length > 5 ? ` +${alert.authors.length - 5} more` : ''}
+                                </div>
+                                <div class="result-meta">${formatDate(alert.detected_at)}</div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    break;
+
+                case 'sockpuppets':
+                    html = '<h3>Sockpuppet Candidates</h3><div class="results">';
+                    (data.candidates || []).forEach(c => {
+                        html += `
+                            <div class="result-item">
+                                <div class="result-header">
+                                    <span style="color: #f85149; font-weight: bold;">${(c.confidence * 100).toFixed(1)}%</span>
+                                </div>
+                                <div class="result-title">
+                                    <span class="result-author" onclick="loadAgentProfile('${escapeHtml(c.author1)}')">${escapeHtml(c.author1)}</span>
+                                    <span style="color: #8b949e; margin: 0 10px;">&harr;</span>
+                                    <span class="result-author" onclick="loadAgentProfile('${escapeHtml(c.author2)}')">${escapeHtml(c.author2)}</span>
+                                </div>
+                                <div class="result-meta">
+                                    Temporal: ${(c.evidence?.temporal_similarity * 100 || 0).toFixed(1)}% |
+                                    Vocabulary: ${(c.evidence?.vocabulary_similarity * 100 || 0).toFixed(1)}% |
+                                    No interaction: ${c.evidence?.no_interaction ? 'Yes' : 'No'}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    break;
+
+                case 'synchronized':
+                    html = '<h3>Synchronized Posting Groups</h3><div class="results">';
+                    (data.groups || []).forEach(g => {
+                        html += `
+                            <div class="result-item">
+                                <div class="result-header">
+                                    <span class="result-type" style="background: #a371f7;">${g.group_size} authors</span>
+                                    <span style="color: #00d4aa;">Score: ${g.coordination_score}</span>
+                                </div>
+                                <div style="margin-top: 8px;">
+                                    ${g.authors.slice(0, 5).map(a => `<span class="result-author" onclick="loadAgentProfile('${escapeHtml(a)}')">${escapeHtml(a)}</span>`).join(', ')}
+                                </div>
+                                <div class="result-meta">
+                                    Similarity: ${(g.avg_similarity * 100).toFixed(1)}% |
+                                    Time spread: ${g.time_spread_minutes.toFixed(0)} min
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    break;
+
+                case 'clusters':
+                    html = '<h3>Coordination Clusters</h3><div class="results">';
+                    (data.clusters || []).forEach(c => {
+                        if (c.error) return;
+                        html += `
+                            <div class="result-item">
+                                <div class="result-header">
+                                    <span class="result-type">${c.size} members</span>
+                                    <span style="color: #00d4aa;">Score: ${c.coordination_score}</span>
+                                </div>
+                                <div style="margin-top: 8px;">
+                                    ${c.members.slice(0, 8).map(a => `<span class="result-author" onclick="loadAgentProfile('${escapeHtml(a)}')">${escapeHtml(a)}</span>`).join(', ')}
+                                    ${c.members.length > 8 ? ` +${c.members.length - 8} more` : ''}
+                                </div>
+                                <div class="result-meta">Cohesion: ${c.cohesion}</div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    break;
+
+                case 'bursts':
+                    html = '<h3>Activity Bursts</h3><div class="results">';
+                    (Array.isArray(data) ? data : []).forEach(b => {
+                        html += `
+                            <div class="result-item">
+                                <div class="result-header">
+                                    <span class="result-type" style="background: ${b.z_score > 5 ? '#f85149' : '#f0883e'};">z=${b.z_score}</span>
+                                    <span>${b.peak_activity} posts/hour</span>
+                                </div>
+                                <div style="margin-top: 8px;">Peak: ${formatDate(b.peak_hour)}</div>
+                                <div class="result-meta">
+                                    Duration: ${b.duration_hours}h |
+                                    Authors: ${b.author_count} |
+                                    Top: ${b.top_authors?.slice(0, 3).map(a => a.author).join(', ')}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    break;
+
+                case 'narratives':
+                    html = '<h3>Coordinated Narrative Pushes</h3><div class="results">';
+                    (data.pushes || []).forEach(p => {
+                        html += `
+                            <div class="result-item">
+                                <div class="result-header">
+                                    <span class="result-type" style="background: ${p.coordination_score > 8 ? '#f85149' : '#f0883e'};">Score: ${p.coordination_score}</span>
+                                    <span>${p.author_count} authors</span>
+                                </div>
+                                <div style="margin-top: 8px;">
+                                    ${p.authors.slice(0, 5).map(a => `<span class="result-author" onclick="loadAgentProfile('${escapeHtml(a)}')">${escapeHtml(a)}</span>`).join(', ')}
+                                </div>
+                                <div class="result-meta">
+                                    Time spread: ${p.time_spread_hours}h
+                                    ${p.fingerprint_similarity ? ` | Fingerprint sim: ${(p.fingerprint_similarity * 100).toFixed(1)}%` : ''}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    break;
+
+                case 'communities':
+                    html = '<h3>Network Communities</h3>';
+                    if (data.error) {
+                        html += `<div class="error">${data.error}</div>`;
+                    } else {
+                        html += `<p style="color: #8b949e;">Total: ${data.total_communities} communities${data.modularity ? `, Modularity: ${data.modularity.toFixed(3)}` : ''}</p><div class="results">`;
+                        (data.communities || []).forEach(c => {
+                            html += `
+                                <div class="result-item">
+                                    <div class="result-header">
+                                        <span class="result-type">Community ${c.community_id}</span>
+                                        <span>${c.size} members</span>
+                                    </div>
+                                    <div style="margin-top: 8px;">
+                                        ${c.members.slice(0, 10).map(a => `<span class="result-author" onclick="loadAgentProfile('${escapeHtml(a)}')">${escapeHtml(a)}</span>`).join(', ')}
+                                        ${c.members.length > 10 ? ` +${c.members.length - 10} more` : ''}
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        html += '</div>';
+                    }
+                    break;
+
+                case 'bridges':
+                    html = '<h3>Bridge Agents</h3><p style="color: #8b949e; margin-bottom: 15px;">Agents connecting different communities</p><div class="results">';
+                    (Array.isArray(data) ? data : []).forEach(b => {
+                        html += `
+                            <div class="result-item" onclick="loadAgentProfile('${escapeHtml(b.author)}')">
+                                <div class="result-header">
+                                    <span class="result-type">Bridge Score: ${b.bridge_score}</span>
+                                </div>
+                                <div class="result-title">${escapeHtml(b.author)}</div>
+                                <div class="result-meta">
+                                    Cross-community: ${b.cross_community_connections} |
+                                    Same community: ${b.same_community_connections} |
+                                    Betweenness: ${b.betweenness}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    break;
+
+                case 'high-risk':
+                    html = '<h3>High-Risk Agents</h3><div class="results">';
+                    (Array.isArray(data) ? data : []).forEach(a => {
+                        const riskColor = a.risk_level === 'critical' ? '#f85149' :
+                                         a.risk_level === 'high' ? '#f0883e' :
+                                         a.risk_level === 'medium' ? '#d29922' : '#8b949e';
+                        html += `
+                            <div class="result-item" onclick="loadAgentProfile('${escapeHtml(a.author)}')">
+                                <div class="result-header">
+                                    <span class="result-type" style="background: ${riskColor};">${a.risk_level?.toUpperCase()}</span>
+                                    <span style="font-weight: bold; color: ${riskColor};">${a.risk_score}/100</span>
+                                </div>
+                                <div class="result-title">${escapeHtml(a.author)}</div>
+                                <div class="result-meta">
+                                    Active alerts: ${a.alert_count} |
+                                    Types: ${a.alert_types?.join(', ') || 'none'}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    break;
+
+                default:
+                    html = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            }
+
+            container.innerHTML = html;
+        }
+
+        async function loadSockpuppetNetwork() {
+            const container = document.getElementById('sockpuppet-network-container');
+            const graphDiv = document.getElementById('sockpuppet-graph');
+            container.style.display = 'block';
+
+            try {
+                const res = await fetch(`${API_BASE}/insights/sockpuppet-network`);
+                if (!res.ok) throw new Error('Network data not available');
+
+                const data = await res.json();
+
+                if (!data.nodes || data.nodes.length === 0) {
+                    graphDiv.innerHTML = '<div style="color: #8b949e; text-align: center; padding: 50px;">No sockpuppet connections found</div>';
+                    return;
+                }
+
+                // Create vis.js network
+                const nodes = new vis.DataSet(data.nodes.map(n => ({
+                    id: n.id,
+                    label: n.label,
+                    color: {
+                        background: '#f85149',
+                        border: '#ff7b7b',
+                        highlight: {background: '#00d4aa', border: '#00ffcc'}
+                    },
+                    font: {color: '#c9d1d9'}
+                })));
+
+                const edges = new vis.DataSet(data.edges.map(e => ({
+                    from: e.source,
+                    to: e.target,
+                    value: e.weight,
+                    title: `Confidence: ${(e.weight * 100).toFixed(1)}%`,
+                    color: {color: '#f85149', highlight: '#00d4aa'}
+                })));
+
+                const network = new vis.Network(graphDiv, {nodes, edges}, {
+                    nodes: {
+                        shape: 'dot',
+                        size: 20,
+                        font: {size: 12}
+                    },
+                    edges: {
+                        width: 2,
+                        scaling: {min: 1, max: 5}
+                    },
+                    physics: {
+                        stabilization: {iterations: 100},
+                        barnesHut: {gravitationalConstant: -2000}
+                    },
+                    interaction: {
+                        hover: true,
+                        tooltipDelay: 100
+                    }
+                });
+
+                network.on('click', function(params) {
+                    if (params.nodes.length > 0) {
+                        loadAgentProfile(params.nodes[0]);
+                    }
+                });
+
+            } catch (e) {
+                graphDiv.innerHTML = `<div class="error" style="padding: 50px; text-align: center;">Error: ${e.message}</div>`;
+            }
+        }
+
+        async function loadCoordinationPreviews() {
+            // Load previews for coordination cards
+            const previewConfigs = [
+                {id: 'coord-alerts-preview', endpoint: '/insights/coordination/summary',
+                 extract: d => `${d.total_active || 0} active (${d.critical_count || 0} critical)`},
+                {id: 'coord-sockpuppets-preview', endpoint: '/insights/sockpuppets',
+                 extract: d => `${d.candidates?.length || 0} candidates`},
+                {id: 'coord-synchronized-preview', endpoint: '/insights/synchronized-posting',
+                 extract: d => `${d.groups?.length || 0} groups`},
+                {id: 'coord-clusters-preview', endpoint: '/insights/clusters',
+                 extract: d => `${d.clusters?.length || 0} clusters`},
+                {id: 'coord-bursts-preview', endpoint: '/insights/bursts',
+                 extract: d => `${Array.isArray(d) ? d.length : 0} bursts detected`},
+                {id: 'coord-narratives-preview', endpoint: '/insights/coordinated-pushes',
+                 extract: d => `${d.pushes?.length || 0} coordinated pushes`},
+                {id: 'coord-communities-preview', endpoint: '/insights/communities',
+                 extract: d => d.error ? 'Loading...' : `${d.total_communities || 0} communities`},
+                {id: 'coord-bridges-preview', endpoint: '/insights/bridges',
+                 extract: d => `${Array.isArray(d) ? d.length : 0} bridge agents`},
+                {id: 'coord-risk-preview', endpoint: '/insights/high-risk-agents',
+                 extract: d => `${Array.isArray(d) ? d.length : 0} flagged agents`}
+            ];
+
+            for (const config of previewConfigs) {
+                try {
+                    const res = await fetch(`${API_BASE}${config.endpoint}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        document.getElementById(config.id).textContent = config.extract(data);
+                    }
+                } catch (e) {
+                    // Silent fail for previews
+                }
+            }
+        }
+
         // Load stats and insight previews on page load
         loadStats();
         setTimeout(loadAllInsightPreviews, 1000);
+        setTimeout(loadCoordinationPreviews, 1500);
     </script>
 </body>
 </html>

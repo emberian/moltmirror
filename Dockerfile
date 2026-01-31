@@ -23,7 +23,14 @@ RUN pip install --no-cache-dir \
     click \
     tqdm \
     scikit-learn \
-    requests
+    requests \
+    scipy \
+    networkx \
+    python-louvain \
+    pandas \
+    hdbscan \
+    aiohttp-socks \
+    PySocks
 
 # Copy application code
 COPY . .

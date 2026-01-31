@@ -130,7 +130,186 @@ def init_database():
             computed_at TEXT
         )
     """)
-    
+
+    # IC-Grade Analysis Tables
+
+    # Matrix cache for sparse matrices
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS matrix_cache (
+            matrix_name TEXT PRIMARY KEY,
+            data BLOB,
+            shape TEXT,
+            nnz INTEGER,
+            row_labels BLOB,
+            col_labels BLOB,
+            computed_at TEXT
+        )
+    """)
+
+    # Behavioral fingerprints
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS agent_fingerprints (
+            author_name TEXT PRIMARY KEY,
+            fingerprint BLOB,
+            computed_at TEXT,
+            sample_size INTEGER,
+            version INTEGER DEFAULT 1
+        )
+    """)
+
+    # Fingerprint history for behavior change detection
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS fingerprint_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            author_name TEXT,
+            fingerprint BLOB,
+            computed_at TEXT,
+            FOREIGN KEY (author_name) REFERENCES agent_fingerprints(author_name)
+        )
+    """)
+
+    # Coordination alerts
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS coordination_alerts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            alert_type TEXT,
+            severity TEXT,
+            involved_authors TEXT,
+            evidence TEXT,
+            confidence REAL,
+            detected_at TEXT,
+            status TEXT DEFAULT 'active',
+            resolved_at TEXT,
+            resolution_notes TEXT
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_alerts_type ON coordination_alerts(alert_type)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_alerts_severity ON coordination_alerts(severity)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_alerts_status ON coordination_alerts(status)")
+
+    # Sockpuppet candidates
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS sockpuppet_candidates (
+            author1 TEXT,
+            author2 TEXT,
+            confidence REAL,
+            evidence TEXT,
+            detected_at TEXT,
+            status TEXT DEFAULT 'pending',
+            PRIMARY KEY (author1, author2)
+        )
+    """)
+
+    # Coordination clusters
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS coordination_clusters (
+            cluster_id TEXT PRIMARY KEY,
+            members TEXT,
+            cohesion REAL,
+            coordination_score REAL,
+            detected_at TEXT
+        )
+    """)
+
+    # Graph metrics
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS graph_metrics (
+            author_name TEXT,
+            metric_name TEXT,
+            metric_value REAL,
+            computed_at TEXT,
+            PRIMARY KEY (author_name, metric_name)
+        )
+    """)
+
+    # Graph communities
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS graph_communities (
+            community_id INTEGER PRIMARY KEY,
+            members TEXT,
+            size INTEGER,
+            modularity REAL,
+            computed_at TEXT
+        )
+    """)
+
+    # Activity bursts
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS activity_bursts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            burst_start TEXT,
+            burst_end TEXT,
+            peak_hour TEXT,
+            peak_activity INTEGER,
+            z_score REAL,
+            involved_authors TEXT,
+            detected_at TEXT
+        )
+    """)
+
+    # Temporal correlations between authors
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS temporal_correlations (
+            author1 TEXT,
+            author2 TEXT,
+            correlation REAL,
+            lag_hours INTEGER,
+            computed_at TEXT,
+            PRIMARY KEY (author1, author2)
+        )
+    """)
+
+    # Circadian profiles
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS circadian_profiles (
+            author_name TEXT PRIMARY KEY,
+            timezone_offset INTEGER,
+            active_hours TEXT,
+            profile_type TEXT,
+            computed_at TEXT
+        )
+    """)
+
+    # Narratives
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS narratives (
+            narrative_id TEXT PRIMARY KEY,
+            key_phrases TEXT,
+            centroid BLOB,
+            post_count INTEGER,
+            first_seen TEXT,
+            last_seen TEXT,
+            status TEXT DEFAULT 'active'
+        )
+    """)
+
+    # Narrative posts association
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS narrative_posts (
+            post_id TEXT,
+            narrative_id TEXT,
+            role TEXT,
+            similarity REAL,
+            created_at TEXT,
+            PRIMARY KEY (post_id, narrative_id),
+            FOREIGN KEY (narrative_id) REFERENCES narratives(narrative_id)
+        )
+    """)
+
+    # Coordinated pushes
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS coordinated_pushes (
+            push_id TEXT PRIMARY KEY,
+            narrative_id TEXT,
+            authors TEXT,
+            posts TEXT,
+            start_time TEXT,
+            end_time TEXT,
+            coordination_score REAL,
+            detected_at TEXT
+        )
+    """)
+
     conn.commit()
     conn.close()
     print(f"Database initialized at {DB_PATH}")
