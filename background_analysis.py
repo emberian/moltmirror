@@ -6,6 +6,8 @@ Runs continuous analysis when system is idle
 import sqlite3
 import numpy as np
 import hashlib
+import aiohttp
+import asyncio
 from datetime import datetime, timedelta
 from pathlib import Path
 from collections import defaultdict
@@ -13,6 +15,13 @@ import json
 import time
 import threading
 from typing import Dict, List, Any, Optional
+
+# Import embedding generation
+try:
+    from analysis.embeddings import generate_embeddings, EMBEDDINGS_AVAILABLE
+except ImportError:
+    EMBEDDINGS_AVAILABLE = False
+    def generate_embeddings(): pass
 
 DB_PATH = Path("analysis.db")
 INSIGHTS_PATH = Path("insights_cache.json")
@@ -776,11 +785,248 @@ class BackgroundAnalyzer:
             'analyzed_at': datetime.now().isoformat()
         }
 
+    def sync_new_content(self) -> Dict:
+        """Fetch new content from Moltbook and import into database"""
+        BASE_URL = "https://www.moltbook.com"
+
+        sync_result = {
+            'new_posts': 0,
+            'new_comments': 0,
+            'errors': [],
+            'synced_at': datetime.now().isoformat()
+        }
+
+        conn = self.get_db()
+        cursor = conn.cursor()
+
+        # Get known post IDs
+        cursor.execute("SELECT id FROM posts")
+        known_posts = {row[0] for row in cursor.fetchall()}
+
+        try:
+            # Synchronous HTTP requests (simpler than async in background thread)
+            import requests
+
+            headers = {
+                'User-Agent': 'MoltmirrorSync/1.0',
+                'Accept': 'application/json',
+            }
+
+            # Fetch recent posts
+            new_posts = []
+            offset = 0
+            consecutive_known = 0
+
+            while consecutive_known < 3 and offset < 500:
+                try:
+                    resp = requests.get(
+                        f"{BASE_URL}/api/v1/posts?sort=new&offset={offset}",
+                        headers=headers,
+                        timeout=30
+                    )
+                    if resp.status_code != 200:
+                        break
+
+                    data = resp.json()
+                    posts = data.get('posts', [])
+
+                    if not posts:
+                        break
+
+                    for post in posts:
+                        post_id = post.get('id')
+                        if not post_id:
+                            continue
+
+                        if post_id in known_posts:
+                            consecutive_known += 1
+                        else:
+                            consecutive_known = 0
+                            new_posts.append(post)
+                            known_posts.add(post_id)
+
+                    if not data.get('has_more', False):
+                        break
+                    offset += 25
+
+                except Exception as e:
+                    sync_result['errors'].append(f"Fetch posts error: {str(e)}")
+                    break
+
+            # Import new posts
+            for post in new_posts:
+                try:
+                    author = post.get('author', {})
+                    submolt = post.get('submolt', {})
+
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO posts
+                        (id, title, content, author_id, author_name, submolt,
+                         upvotes, downvotes, comment_count, created_at, has_embedding)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE)
+                    """, (
+                        post.get('id'),
+                        post.get('title'),
+                        post.get('content'),
+                        author.get('id') if isinstance(author, dict) else None,
+                        author.get('name') if isinstance(author, dict) else None,
+                        submolt.get('name') if isinstance(submolt, dict) else None,
+                        post.get('upvotes', 0),
+                        post.get('downvotes', 0),
+                        post.get('comment_count', 0),
+                        post.get('created_at')
+                    ))
+                    sync_result['new_posts'] += 1
+                except Exception as e:
+                    sync_result['errors'].append(f"Import post error: {str(e)}")
+
+            # Fetch comments for new posts
+            for post in new_posts[:50]:  # Limit to avoid too many requests
+                try:
+                    resp = requests.get(
+                        f"{BASE_URL}/api/v1/posts/{post['id']}",
+                        headers=headers,
+                        timeout=30
+                    )
+                    if resp.status_code == 200:
+                        detail = resp.json()
+                        comments = detail.get('comments', [])
+
+                        for comment in comments:
+                            c_author = comment.get('author', {})
+                            cursor.execute("""
+                                INSERT OR REPLACE INTO comments
+                                (id, post_id, content, author_id, author_name, parent_id,
+                                 upvotes, downvotes, created_at, has_embedding)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE)
+                            """, (
+                                comment.get('id'),
+                                post['id'],
+                                comment.get('content'),
+                                c_author.get('id') if isinstance(c_author, dict) else None,
+                                c_author.get('name') if isinstance(c_author, dict) else None,
+                                comment.get('parent_id'),
+                                comment.get('upvotes', 0),
+                                comment.get('downvotes', 0),
+                                comment.get('created_at')
+                            ))
+                            sync_result['new_comments'] += 1
+
+                    time.sleep(0.1)  # Be polite
+                except Exception as e:
+                    sync_result['errors'].append(f"Fetch comments error: {str(e)}")
+
+            conn.commit()
+
+        except Exception as e:
+            sync_result['errors'].append(f"Sync error: {str(e)}")
+        finally:
+            conn.close()
+
+        # Generate embeddings for new content
+        if sync_result['new_posts'] > 0 or sync_result['new_comments'] > 0:
+            try:
+                if EMBEDDINGS_AVAILABLE:
+                    print(f"  Generating embeddings for {sync_result['new_posts']} posts, {sync_result['new_comments']} comments...")
+                    generate_embeddings()
+                    sync_result['embeddings_generated'] = True
+            except Exception as e:
+                sync_result['errors'].append(f"Embedding error: {str(e)}")
+                sync_result['embeddings_generated'] = False
+
+        return sync_result
+
+    def get_system_status(self) -> Dict:
+        """Get comprehensive system status"""
+        conn = self.get_db()
+        cursor = conn.cursor()
+
+        # Database stats
+        cursor.execute("SELECT COUNT(*) FROM posts")
+        total_posts = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM comments")
+        total_comments = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM embeddings")
+        total_embeddings = cursor.fetchone()[0]
+
+        # Freshness
+        cursor.execute("SELECT MAX(created_at), MIN(created_at) FROM posts")
+        freshness_row = cursor.fetchone()
+        newest_post = freshness_row[0]
+        oldest_post = freshness_row[1]
+
+        cursor.execute("SELECT COUNT(*) FROM posts WHERE created_at > datetime('now', '-24 hours')")
+        posts_24h = cursor.fetchone()[0]
+
+        conn.close()
+
+        # Calculate coverage
+        total_content = total_posts + total_comments
+        embedding_coverage = (total_embeddings / total_content * 100) if total_content > 0 else 0
+        missing_embeddings = total_content - total_embeddings
+
+        # Sync status from cache
+        sync_info = self.insights_cache.get('sync_status', {})
+        last_sync = sync_info.get('synced_at')
+
+        # Determine sync status
+        sync_status = 'unknown'
+        if last_sync:
+            try:
+                last_sync_dt = datetime.fromisoformat(last_sync.replace('Z', '+00:00'))
+                age_hours = (datetime.now() - last_sync_dt.replace(tzinfo=None)).total_seconds() / 3600
+                if age_hours < 1:
+                    sync_status = 'ok'
+                elif age_hours < 6:
+                    sync_status = 'stale'
+                else:
+                    sync_status = 'old'
+            except:
+                sync_status = 'unknown'
+        else:
+            sync_status = 'never'
+
+        return {
+            'database': {
+                'posts': total_posts,
+                'comments': total_comments,
+                'total_content': total_content,
+            },
+            'embeddings': {
+                'embedded': total_embeddings,
+                'total_content': total_content,
+                'missing': missing_embeddings,
+                'coverage_percent': round(embedding_coverage, 1),
+            },
+            'sync': {
+                'status': sync_status,
+                'last_sync': last_sync,
+                'new_posts_imported': sync_info.get('new_posts', 0),
+                'new_comments_imported': sync_info.get('new_comments', 0),
+                'errors': sync_info.get('errors', []),
+            },
+            'freshness': {
+                'newest_post': newest_post,
+                'oldest_post': oldest_post,
+                'posts_last_24h': posts_24h,
+            },
+            'analysis': {
+                'running': self.running,
+                'cached_insights': len(self.insights_cache),
+                'last_runs': {k: v.isoformat() if isinstance(v, datetime) else str(v)
+                             for k, v in self.last_analysis.items()},
+            },
+            'status_generated_at': datetime.now().isoformat()
+        }
+
     def run_analysis_cycle(self):
         """Run one full analysis cycle"""
         print(f"[{datetime.now().isoformat()}] Starting analysis cycle...")
         
         analyses = [
+            ('sync_status', self.sync_new_content, 30),  # Sync every 30 min
             ('trending_agents', self.analyze_trending_agents, 15),
             ('conversation_clusters', self.analyze_conversation_clusters, 30),
             ('network_centrality', self.analyze_network_centrality, 60),

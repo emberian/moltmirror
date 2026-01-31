@@ -639,9 +639,23 @@ async def get_all_insights():
     analyzer = get_analyzer()
     return {
         'insights': analyzer.insights_cache,
-        'last_analysis': {k: v.isoformat() if isinstance(v, datetime) else v 
+        'last_analysis': {k: v.isoformat() if isinstance(v, datetime) else v
                          for k, v in analyzer.last_analysis.items()}
     }
+
+@app.get("/api/status")
+async def get_system_status():
+    """Get comprehensive system status including sync and analysis info"""
+    if not BACKGROUND_AVAILABLE:
+        return {
+            'status': 'limited',
+            'message': 'Background analysis not available',
+            'database': {'available': DB_PATH.exists()},
+            'embeddings': {'available': EMBEDDINGS_AVAILABLE}
+        }
+
+    analyzer = get_analyzer()
+    return analyzer.get_system_status()
 
 @app.post("/api/admin/trigger-analysis", dependencies=[Depends(verify_admin_key)])
 async def trigger_analysis():

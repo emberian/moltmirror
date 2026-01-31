@@ -22,7 +22,8 @@ RUN pip install --no-cache-dir \
     numpy \
     click \
     tqdm \
-    scikit-learn
+    scikit-learn \
+    requests
 
 # Copy application code
 COPY . .

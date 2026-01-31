@@ -482,6 +482,7 @@
             <div class="tab" onclick="showTab('compare', this)">Compare</div>
             <div class="tab" onclick="showTab('trends', this)">Trends</div>
             <div class="tab" onclick="showTab('agents', this)">Agents</div>
+            <div class="tab" onclick="showTab('status', this)">Status</div>
         </div>
 
         <!-- Search Tab -->
@@ -616,6 +617,14 @@
             <button class="back-btn" onclick="showTab('agents', null)">&larr; Back to Agents</button>
             <div id="agent-profile-content"></div>
         </div>
+
+        <!-- Status Tab -->
+        <div id="status-tab" class="search-section" style="display:none">
+            <h2>System Status</h2>
+            <p style="color: #8b949e; margin-bottom: 20px;">Sync status, analysis timing, and system health</p>
+            <button onclick="loadStatus()">Refresh Status</button>
+            <div id="status-content" style="margin-top: 20px;"></div>
+        </div>
     </div>
 
     <script>
@@ -643,7 +652,7 @@
             }
 
             // Hide all tabs
-            const tabs = ['search', 'insights', 'topic-graph', 'compare', 'trends', 'agents', 'agent-profile'];
+            const tabs = ['search', 'insights', 'topic-graph', 'compare', 'trends', 'agents', 'agent-profile', 'status'];
             tabs.forEach(t => {
                 const el = document.getElementById(`${t}-tab`);
                 if (el) el.style.display = 'none';
@@ -652,6 +661,11 @@
             // Show selected tab
             const selectedTab = document.getElementById(`${tab}-tab`);
             if (selectedTab) selectedTab.style.display = 'block';
+
+            // Auto-load status when switching to status tab
+            if (tab === 'status') {
+                loadStatus();
+            }
         }
 
         async function doSearch() {
@@ -1268,6 +1282,129 @@
                 'spam': 'Spam Detection'
             };
             return titles[type] || type;
+        }
+
+        async function loadStatus() {
+            const container = document.getElementById('status-content');
+            container.innerHTML = '<div class="loading">Loading status...</div>';
+
+            try {
+                const res = await fetch(`${API_BASE}/status`);
+                const data = await res.json();
+
+                let html = '<div class="insight-grid">';
+
+                // Database status
+                html += `
+                    <div class="insight-card">
+                        <h3>Database</h3>
+                        <div class="insight-preview">
+                            <div>Posts: ${data.database?.posts?.toLocaleString() || 0}</div>
+                            <div>Comments: ${data.database?.comments?.toLocaleString() || 0}</div>
+                            <div>Total: ${data.database?.total_content?.toLocaleString() || 0}</div>
+                        </div>
+                    </div>
+                `;
+
+                // Embedding coverage
+                const coverage = data.embeddings?.coverage_percent || 0;
+                const coverageColor = coverage >= 90 ? '#00d4aa' : coverage >= 50 ? '#f0883e' : '#f85149';
+                html += `
+                    <div class="insight-card">
+                        <h3>Embeddings</h3>
+                        <div class="insight-preview">
+                            <div style="font-size: 24px; color: ${coverageColor};">${coverage.toFixed(1)}%</div>
+                            <div style="margin-top: 5px;">${data.embeddings?.embedded?.toLocaleString() || 0} / ${data.embeddings?.total_content?.toLocaleString() || 0}</div>
+                            <div style="color: #8b949e; font-size: 11px;">Missing: ${data.embeddings?.missing?.toLocaleString() || 0}</div>
+                        </div>
+                    </div>
+                `;
+
+                // Sync status
+                const lastSync = data.sync?.last_sync;
+                const syncStatus = data.sync?.status || 'unknown';
+                const syncColor = syncStatus === 'ok' ? '#00d4aa' : syncStatus === 'stale' ? '#f0883e' : '#8b949e';
+                html += `
+                    <div class="insight-card">
+                        <h3>Content Sync</h3>
+                        <div class="insight-preview">
+                            <div style="color: ${syncColor}; font-weight: bold;">${syncStatus.toUpperCase()}</div>
+                            ${lastSync ? `<div style="margin-top: 5px;">Last: ${formatDate(lastSync)}</div>` : '<div style="margin-top: 5px;">Never synced</div>'}
+                            ${data.sync?.new_posts_imported ? `<div style="color: #00d4aa;">+${data.sync.new_posts_imported} new</div>` : ''}
+                        </div>
+                    </div>
+                `;
+
+                // Content freshness
+                html += `
+                    <div class="insight-card">
+                        <h3>Content Freshness</h3>
+                        <div class="insight-preview">
+                            ${data.freshness?.newest_post ? `<div>Newest: ${formatDate(data.freshness.newest_post)}</div>` : ''}
+                            ${data.freshness?.oldest_post ? `<div>Oldest: ${formatDate(data.freshness.oldest_post)}</div>` : ''}
+                            ${data.freshness?.posts_last_24h !== undefined ? `<div style="color: #00d4aa;">${data.freshness.posts_last_24h} posts (24h)</div>` : ''}
+                        </div>
+                    </div>
+                `;
+
+                // Analysis status
+                html += `
+                    <div class="insight-card">
+                        <h3>Background Analysis</h3>
+                        <div class="insight-preview">
+                            <div style="color: ${data.analysis?.running ? '#00d4aa' : '#8b949e'};">
+                                ${data.analysis?.running ? 'RUNNING' : 'IDLE'}
+                            </div>
+                            <div style="margin-top: 5px;">Cached: ${data.analysis?.cached_insights || 0} insights</div>
+                        </div>
+                    </div>
+                `;
+
+                html += '</div>';
+
+                // Last analysis times
+                if (data.analysis?.last_runs && Object.keys(data.analysis.last_runs).length > 0) {
+                    html += `
+                        <div style="margin-top: 25px;">
+                            <h3 style="color: #e01b24; margin-bottom: 15px;">Analysis Schedule</h3>
+                            <div class="results">
+                    `;
+
+                    for (const [analysis, time] of Object.entries(data.analysis.last_runs)) {
+                        const displayName = analysis.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                        html += `
+                            <div class="result-item" style="display: inline-block; margin-right: 10px; margin-bottom: 10px; padding: 10px 15px;">
+                                <strong>${displayName}</strong><br>
+                                <span style="color: #8b949e; font-size: 12px;">${formatDate(time)}</span>
+                            </div>
+                        `;
+                    }
+
+                    html += '</div></div>';
+                }
+
+                // Moltbook API status (if available)
+                if (data.moltbook_api) {
+                    const apiColor = data.moltbook_api.status === 'ok' ? '#00d4aa' : '#f85149';
+                    html += `
+                        <div style="margin-top: 25px;">
+                            <h3 style="color: #e01b24; margin-bottom: 15px;">Moltbook API</h3>
+                            <div class="insight-card" style="display: inline-block;">
+                                <div class="insight-preview">
+                                    <div style="color: ${apiColor}; font-weight: bold;">${data.moltbook_api.status?.toUpperCase() || 'UNKNOWN'}</div>
+                                    ${data.moltbook_api.last_check ? `<div>Checked: ${formatDate(data.moltbook_api.last_check)}</div>` : ''}
+                                    ${data.moltbook_api.error ? `<div style="color: #f85149; font-size: 12px;">${data.moltbook_api.error}</div>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                container.innerHTML = html;
+
+            } catch (e) {
+                container.innerHTML = `<div class="error">Error loading status: ${e.message}</div>`;
+            }
         }
 
         async function loadAllInsightPreviews() {
