@@ -6,7 +6,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./analysis.db:/data/analysis.db:ro
+      - ./analysis.db:/data/analysis.db
       - ./insights_cache.json:/app/insights_cache.json
       - model-cache:/root/.cache/huggingface
     environment:
