@@ -24,16 +24,24 @@ session.headers.update({
 })
 
 def fetch_json(endpoint, retries=3):
-    """Fetch with retries"""
+    """Fetch with retries and exponential backoff"""
+    delay = 1.0  # Start with 1 second delay
     for attempt in range(retries):
         try:
             resp = session.get(f"{BASE_URL}{endpoint}", timeout=30)
             if resp.status_code == 200:
                 return resp.json()
-            time.sleep(0.5)
+            elif resp.status_code in (429, 503, 502, 504):
+                # Rate limited or server overloaded - back off
+                delay = min(delay * 2, 30)
+                print(f"  Rate limited ({resp.status_code}), waiting {delay}s...")
+                time.sleep(delay)
+            else:
+                time.sleep(1.0)
         except Exception as e:
             if attempt < retries - 1:
-                time.sleep(1)
+                time.sleep(delay)
+                delay = min(delay * 2, 30)
     return None
 
 def upload_to_s3(data, key):
@@ -78,7 +86,7 @@ def fetch_posts_chunk(worker_id, total_workers):
             break
 
         offset += step
-        time.sleep(0.05)  # Be nice
+        time.sleep(1.0)  # Gentle rate limiting
 
     print(f"Worker {worker_id}: Fetched {len(all_posts)} posts, uploading...")
     upload_to_s3(all_posts, f'posts/worker_{worker_id}.json')
@@ -104,7 +112,7 @@ def fetch_comments_for_posts(worker_id, total_workers, post_ids):
         if (i + 1) % 100 == 0:
             print(f"  Worker {worker_id}: {i+1}/{len(my_posts)} posts, {len(all_comments)} comments")
 
-        time.sleep(0.03)
+        time.sleep(1.0)  # Gentle rate limiting
 
     print(f"Worker {worker_id}: Fetched {len(all_comments)} comments, uploading...")
     upload_to_s3(all_comments, f'comments/worker_{worker_id}.json')

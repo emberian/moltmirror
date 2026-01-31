@@ -33,6 +33,15 @@ class AlertType(Enum):
     BEHAVIOR_CHANGE = "behavior_change"
     VOTE_MANIPULATION = "vote_manipulation"
     BOT_FARM = "bot_farm"
+    # LLM-specific alert types
+    SAME_OPERATOR = "same_operator"
+    INFORMATION_LAUNDERING = "information_laundering"
+    MODEL_MISMATCH = "model_mismatch"
+    PERSONA_CONTRADICTION = "persona_contradiction"
+    PROMPT_TEMPLATE_CLUSTER = "prompt_template_cluster"
+    INFRASTRUCTURE_CORRELATION = "infrastructure_correlation"
+    SUDDEN_PERSONA_SHIFT = "sudden_persona_shift"
+    COPY_CHAIN_SOURCE = "copy_chain_source"
 
 
 def get_db():
@@ -504,6 +513,271 @@ def generate_bot_farm_alerts() -> List[Dict[str, Any]]:
     return alerts
 
 
+def generate_same_operator_alerts() -> List[Dict[str, Any]]:
+    """Generate alerts from same-operator detection"""
+    try:
+        from .same_operator import get_same_operator_candidates
+    except ImportError:
+        try:
+            from analysis.same_operator import get_same_operator_candidates
+        except ImportError:
+            return []
+
+    candidates = get_same_operator_candidates(limit=100, min_score=0.7)
+    alerts = []
+
+    for candidate in candidates:
+        score = candidate['overall_score']
+
+        if score >= 0.85:
+            severity = AlertSeverity.HIGH
+        elif score >= 0.7:
+            severity = AlertSeverity.MEDIUM
+        else:
+            continue
+
+        authors = [candidate['author1'], candidate['author2']]
+        if check_duplicate_alert(AlertType.SAME_OPERATOR.value, authors):
+            continue
+
+        alert_id = create_alert(
+            AlertType.SAME_OPERATOR,
+            severity,
+            authors,
+            {
+                'overall_score': score,
+                'template_similarity': candidate.get('template_similarity', 0),
+                'infrastructure_correlation': candidate.get('infrastructure_correlation', 0),
+                'activation_overlap': candidate.get('activation_overlap', 0)
+            },
+            score
+        )
+
+        alerts.append({
+            'id': alert_id,
+            'type': AlertType.SAME_OPERATOR.value,
+            'severity': severity.value,
+            'authors': authors,
+            'confidence': score
+        })
+
+    return alerts
+
+
+def generate_information_laundering_alerts() -> List[Dict[str, Any]]:
+    """Generate alerts from information laundering detection"""
+    try:
+        from .information_flow import get_laundering_events
+    except ImportError:
+        try:
+            from analysis.information_flow import get_laundering_events
+        except ImportError:
+            return []
+
+    events = get_laundering_events(limit=50)
+    alerts = []
+
+    for event in events:
+        confidence = event['confidence']
+
+        if confidence >= 0.8:
+            severity = AlertSeverity.HIGH
+        elif confidence >= 0.6:
+            severity = AlertSeverity.MEDIUM
+        else:
+            continue
+
+        authors = [event['original_author']] + event['intermediate_authors'] + event['final_authors']
+        if check_duplicate_alert(AlertType.INFORMATION_LAUNDERING.value, authors[:3]):
+            continue
+
+        alert_id = create_alert(
+            AlertType.INFORMATION_LAUNDERING,
+            severity,
+            authors,
+            {
+                'event_id': event['event_id'],
+                'claim_preview': event['claim_text'][:100],
+                'chain_length': len(authors)
+            },
+            confidence
+        )
+
+        alerts.append({
+            'id': alert_id,
+            'type': AlertType.INFORMATION_LAUNDERING.value,
+            'severity': severity.value,
+            'authors': authors,
+            'confidence': confidence
+        })
+
+    return alerts
+
+
+def generate_persona_contradiction_alerts() -> List[Dict[str, Any]]:
+    """Generate alerts from persona contradiction detection"""
+    try:
+        from .persona_consistency import PersonaTracker, get_persona_shifts
+    except ImportError:
+        try:
+            from analysis.persona_consistency import PersonaTracker, get_persona_shifts
+        except ImportError:
+            return []
+
+    alerts = []
+
+    # Get persona shifts
+    shifts = get_persona_shifts(limit=50)
+
+    for shift in shifts:
+        magnitude = shift['magnitude']
+        cause = shift['likely_cause']
+
+        if cause == 'takeover' and magnitude > 0.5:
+            severity = AlertSeverity.HIGH
+        elif cause == 'prompt_change' and magnitude > 0.3:
+            severity = AlertSeverity.MEDIUM
+        else:
+            continue
+
+        authors = [shift['author_name']]
+        if check_duplicate_alert(AlertType.SUDDEN_PERSONA_SHIFT.value, authors):
+            continue
+
+        alert_id = create_alert(
+            AlertType.SUDDEN_PERSONA_SHIFT,
+            severity,
+            authors,
+            {
+                'shift_time': shift['shift_time'],
+                'magnitude': magnitude,
+                'likely_cause': cause
+            },
+            magnitude
+        )
+
+        alerts.append({
+            'id': alert_id,
+            'type': AlertType.SUDDEN_PERSONA_SHIFT.value,
+            'severity': severity.value,
+            'author': shift['author_name'],
+            'magnitude': magnitude
+        })
+
+    return alerts
+
+
+def generate_prompt_template_cluster_alerts() -> List[Dict[str, Any]]:
+    """Generate alerts from prompt template clustering"""
+    try:
+        from .llm_fingerprints import PromptTemplateDetector
+    except ImportError:
+        try:
+            from analysis.llm_fingerprints import PromptTemplateDetector
+        except ImportError:
+            return []
+
+    detector = PromptTemplateDetector()
+    clusters = detector.cluster_by_template(min_posts=5, n_clusters=15)
+
+    alerts = []
+
+    for cluster in clusters:
+        if len(cluster.members) < 3:
+            continue
+
+        avg_sim = cluster.avg_similarity
+
+        if avg_sim >= 0.9 and len(cluster.members) >= 5:
+            severity = AlertSeverity.HIGH
+        elif avg_sim >= 0.8 and len(cluster.members) >= 3:
+            severity = AlertSeverity.MEDIUM
+        else:
+            continue
+
+        authors = cluster.members[:10]
+        if check_duplicate_alert(AlertType.PROMPT_TEMPLATE_CLUSTER.value, authors[:3]):
+            continue
+
+        confidence = avg_sim * min(len(cluster.members) / 10, 1.0)
+
+        alert_id = create_alert(
+            AlertType.PROMPT_TEMPLATE_CLUSTER,
+            severity,
+            authors,
+            {
+                'cluster_id': cluster.cluster_id,
+                'member_count': len(cluster.members),
+                'avg_similarity': avg_sim
+            },
+            confidence
+        )
+
+        alerts.append({
+            'id': alert_id,
+            'type': AlertType.PROMPT_TEMPLATE_CLUSTER.value,
+            'severity': severity.value,
+            'author_count': len(cluster.members),
+            'confidence': confidence
+        })
+
+    return alerts
+
+
+def generate_copy_chain_alerts() -> List[Dict[str, Any]]:
+    """Generate alerts from copy-paste chain detection"""
+    try:
+        from .authorship import get_copy_chains
+    except ImportError:
+        try:
+            from analysis.authorship import get_copy_chains
+        except ImportError:
+            return []
+
+    chains = get_copy_chains(limit=50)
+    alerts = []
+
+    for chain in chains:
+        length = chain['chain_length']
+
+        if length >= 5:
+            severity = AlertSeverity.MEDIUM
+        elif length >= 3:
+            severity = AlertSeverity.LOW
+        else:
+            continue
+
+        authors = [chain['original_author']] + [c['author'] for c in chain['copies']]
+        if check_duplicate_alert(AlertType.COPY_CHAIN_SOURCE.value, authors[:3]):
+            continue
+
+        avg_sim = np.mean(chain['similarity_scores']) if chain['similarity_scores'] else 0
+        confidence = min(avg_sim * length / 10, 1.0)
+
+        alert_id = create_alert(
+            AlertType.COPY_CHAIN_SOURCE,
+            severity,
+            authors,
+            {
+                'chain_id': chain['chain_id'],
+                'chain_length': length,
+                'original_author': chain['original_author'],
+                'avg_similarity': round(avg_sim, 3)
+            },
+            confidence
+        )
+
+        alerts.append({
+            'id': alert_id,
+            'type': AlertType.COPY_CHAIN_SOURCE.value,
+            'severity': severity.value,
+            'chain_length': length,
+            'confidence': confidence
+        })
+
+    return alerts
+
+
 def run_all_alert_generation() -> Dict[str, Any]:
     """Run all alert generators and return summary"""
     results = {}
@@ -515,7 +789,13 @@ def run_all_alert_generation() -> Dict[str, Any]:
         ('burst', generate_burst_alerts),
         ('narrative_push', generate_narrative_push_alerts),
         ('behavior_change', generate_behavior_change_alerts),
-        ('bot_farm', generate_bot_farm_alerts)
+        ('bot_farm', generate_bot_farm_alerts),
+        # LLM-specific generators
+        ('same_operator', generate_same_operator_alerts),
+        ('information_laundering', generate_information_laundering_alerts),
+        ('persona_contradiction', generate_persona_contradiction_alerts),
+        ('prompt_template_cluster', generate_prompt_template_cluster_alerts),
+        ('copy_chain', generate_copy_chain_alerts),
     ]
 
     for name, generator in generators:

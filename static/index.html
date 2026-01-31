@@ -3,9 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Moltbook Analysis</title>
+    <title>Moltmirror</title>
     <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
     <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --border: #30363d;
+            --border-hover: #484f58;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --text-muted: #6e7681;
+            --accent: #00d4aa;
+            --accent-hover: #00f5c4;
+            --red: #f85149;
+            --orange: #f0883e;
+            --purple: #a371f7;
+            --blue: #58a6ff;
+            --green: #3fb950;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -13,1498 +31,2251 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
-            background: #0d1117;
-            color: #c9d1d9;
-            line-height: 1.6;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.5;
+            overflow-x: hidden;
         }
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        header {
-            text-align: center;
-            padding: 40px 0;
-            border-bottom: 2px solid #e01b24;
-            margin-bottom: 30px;
-        }
-
-        h1 {
-            color: #e01b24;
-            font-size: 2.5em;
-            margin-bottom: 10px;
-        }
-
-        .subtitle {
-            color: #8b949e;
-        }
-
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-            margin-bottom: 30px;
-        }
-
-        .stat-card {
-            background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 8px;
-            padding: 15px;
-            text-align: center;
-        }
-
-        .stat-number {
-            font-size: 1.8em;
-            color: #00d4aa;
-            font-weight: bold;
-        }
-
-        .stat-label {
-            color: #8b949e;
-            font-size: 12px;
-            margin-top: 5px;
-        }
-
-        .search-section {
-            background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 8px;
-            padding: 25px;
-            margin-bottom: 20px;
-        }
-
-        .search-box {
+        /* Layout */
+        .app {
             display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 220px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            padding: 16px 0;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 100;
+            transition: transform 0.2s;
+        }
+
+        .sidebar-header {
+            padding: 0 16px 16px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 8px;
+        }
+
+        .logo {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .logo-icon {
+            width: 24px;
+            height: 24px;
+            background: var(--accent);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .nav-section {
+            padding: 8px 0;
+        }
+
+        .nav-section-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 8px 16px 4px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
             gap: 10px;
-            margin-bottom: 15px;
+            padding: 8px 16px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.15s;
+            font-size: 14px;
+        }
+
+        .nav-item:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .nav-item.active {
+            background: rgba(0, 212, 170, 0.1);
+            color: var(--accent);
+            border-right: 2px solid var(--accent);
+        }
+
+        .nav-item .icon {
+            width: 16px;
+            text-align: center;
+            opacity: 0.7;
+        }
+
+        .nav-item .kbd {
+            margin-left: auto;
+            font-size: 11px;
+            color: var(--text-muted);
+            background: var(--bg-tertiary);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        /* Main Content */
+        .main {
+            flex: 1;
+            margin-left: 220px;
+            min-height: 100vh;
+        }
+
+        /* Top Bar */
+        .topbar {
+            height: 56px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            gap: 16px;
+        }
+
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .breadcrumb-item {
+            cursor: pointer;
+        }
+
+        .breadcrumb-item:hover {
+            color: var(--text-primary);
+        }
+
+        .breadcrumb-sep {
+            color: var(--text-muted);
+        }
+
+        .breadcrumb-current {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .cmd-trigger {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            cursor: pointer;
+            margin-left: auto;
+            transition: all 0.15s;
+        }
+
+        .cmd-trigger:hover {
+            border-color: var(--border-hover);
+            color: var(--text-primary);
+        }
+
+        .cmd-trigger kbd {
+            background: var(--bg-primary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+
+        /* Command Palette */
+        .cmd-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            display: none;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 15vh;
+        }
+
+        .cmd-overlay.open {
+            display: flex;
+        }
+
+        .cmd-palette {
+            width: 560px;
+            max-width: 90vw;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+            overflow: hidden;
+        }
+
+        .cmd-input-wrap {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .cmd-input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            font-size: 16px;
+            outline: none;
+        }
+
+        .cmd-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .cmd-results {
+            max-height: 360px;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .cmd-group-title {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            padding: 8px 12px 4px;
+        }
+
+        .cmd-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+
+        .cmd-item:hover, .cmd-item.selected {
+            background: var(--bg-tertiary);
+        }
+
+        .cmd-item .icon {
+            width: 20px;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        .cmd-item .label {
+            flex: 1;
+            color: var(--text-primary);
+        }
+
+        .cmd-item .hint {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        /* Content Area */
+        .content {
+            padding: 24px;
+            max-width: 1400px;
+        }
+
+        /* Stats Bar */
+        .stats-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
             flex-wrap: wrap;
         }
 
-        .search-filters {
+        .stat-pill {
             display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 13px;
+        }
+
+        .stat-pill .value {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .stat-pill .label {
+            color: var(--text-secondary);
+        }
+
+        .stat-pill.warning .value {
+            color: var(--orange);
+        }
+
+        .stat-pill.error .value {
+            color: var(--red);
+        }
+
+        /* Page Header */
+        .page-header {
+            margin-bottom: 24px;
+        }
+
+        .page-header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .page-header p {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        /* Search Box */
+        .search-box {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .search-input-wrap {
+            flex: 1;
+            position: relative;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 16px;
+            padding-left: 44px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 15px;
+            transition: border-color 0.15s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .search-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+        }
+
+        .btn {
+            padding: 10px 20px;
+            background: var(--accent);
+            color: var(--bg-primary);
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+
+        .btn:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn:disabled {
+            background: var(--bg-tertiary);
+            color: var(--text-muted);
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border);
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 13px;
+        }
+
+        /* Filters */
+        .filters {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
             flex-wrap: wrap;
             align-items: center;
         }
 
-        .search-filters select {
+        .filter-select {
             padding: 8px 12px;
-            background: #0d1117;
-            border: 1px solid #30363d;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
             border-radius: 6px;
-            color: #c9d1d9;
-            font-size: 14px;
-        }
-
-        .search-filters label {
-            color: #8b949e;
+            color: var(--text-primary);
             font-size: 13px;
         }
 
-        input[type="text"] {
-            flex: 1;
-            min-width: 200px;
-            padding: 12px 16px;
-            background: #0d1117;
-            border: 1px solid #30363d;
-            border-radius: 6px;
-            color: #c9d1d9;
-            font-size: 16px;
-        }
-
-        input[type="text"]:focus {
-            outline: none;
-            border-color: #00d4aa;
-        }
-
-        button {
-            padding: 12px 24px;
-            background: #e01b24;
-            color: white;
-            border: none;
-            border-radius: 6px;
+        .filter-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: var(--text-secondary);
             cursor: pointer;
+        }
+
+        .filter-checkbox input {
+            accent-color: var(--accent);
+        }
+
+        /* Section */
+        .section {
+            margin-bottom: 32px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .section-subtitle {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .section-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* Card Grid */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+        }
+
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .card-title {
             font-size: 14px;
-            transition: background 0.2s;
-            white-space: nowrap;
+            font-weight: 600;
+            color: var(--text-primary);
         }
 
-        button:hover {
-            background: #ff3b3b;
+        .card-badge {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 500;
         }
 
-        button:disabled {
-            background: #30363d;
-            cursor: not-allowed;
+        .card-badge.green { background: rgba(63, 185, 80, 0.15); color: var(--green); }
+        .card-badge.orange { background: rgba(240, 136, 62, 0.15); color: var(--orange); }
+        .card-badge.red { background: rgba(248, 81, 73, 0.15); color: var(--red); }
+        .card-badge.blue { background: rgba(88, 166, 255, 0.15); color: var(--blue); }
+        .card-badge.purple { background: rgba(163, 113, 247, 0.15); color: var(--purple); }
+
+        .card-desc {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
         }
 
-        button.secondary {
-            background: #30363d;
+        .card-preview {
+            font-size: 12px;
+            color: var(--text-muted);
+            padding: 10px;
+            background: var(--bg-primary);
+            border-radius: 6px;
+            min-height: 48px;
         }
 
-        button.secondary:hover {
-            background: #484f58;
+        .card-preview .stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 2px 0;
         }
 
-        .results {
-            margin-top: 20px;
+        .card-preview .stat-value {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        /* Loading Skeleton */
+        .skeleton {
+            background: linear-gradient(90deg, var(--bg-tertiary) 25%, var(--border) 50%, var(--bg-tertiary) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 4px;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .skeleton-text {
+            height: 14px;
+            margin-bottom: 8px;
+        }
+
+        .skeleton-text.short { width: 60%; }
+        .skeleton-text.medium { width: 80%; }
+
+        /* Results List */
+        .results-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
         }
 
         .result-item {
-            background: #0d1117;
-            border: 1px solid #30363d;
-            border-radius: 6px;
-            padding: 15px;
-            margin-bottom: 10px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 14px 16px;
             cursor: pointer;
-            transition: border-color 0.2s;
+            transition: all 0.15s;
         }
 
         .result-item:hover {
-            border-color: #00d4aa;
+            border-color: var(--accent);
         }
 
         .result-header {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            margin-bottom: 8px;
+            gap: 10px;
+            margin-bottom: 6px;
             flex-wrap: wrap;
-            gap: 8px;
         }
 
-        .result-type {
-            background: #00d4aa;
-            color: #0d1117;
+        .result-badge {
+            font-size: 11px;
             padding: 2px 8px;
             border-radius: 4px;
-            font-size: 11px;
-            font-weight: bold;
+            font-weight: 600;
+            background: var(--accent);
+            color: var(--bg-primary);
         }
 
-        .result-type.comment {
-            background: #58a6ff;
-        }
+        .result-badge.post { background: var(--green); }
+        .result-badge.comment { background: var(--blue); }
+        .result-badge.spam { background: var(--red); }
 
-        .result-type.spam {
-            background: #f85149;
-        }
-
-        .result-type.duplicate {
-            background: #a371f7;
-        }
-
-        .similarity {
-            color: #00d4aa;
-            font-weight: bold;
-            font-size: 14px;
-        }
-
-        .result-author {
-            color: #58a6ff;
-            font-size: 14px;
-            cursor: pointer;
-        }
-
-        .result-author:hover {
-            text-decoration: underline;
-        }
-
-        .result-content {
-            color: #c9d1d9;
-            margin-top: 8px;
-            font-size: 14px;
+        .result-score {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-left: auto;
         }
 
         .result-title {
-            font-weight: bold;
-            color: #fff;
-            margin-bottom: 5px;
+            font-size: 14px;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .result-content {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
         }
 
         .result-meta {
-            color: #8b949e;
-            font-size: 12px;
-            margin-top: 8px;
-        }
-
-        .tabs {
             display: flex;
-            gap: 8px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
+            gap: 16px;
+            font-size: 12px;
+            color: var(--text-muted);
         }
 
-        .tab {
-            padding: 10px 16px;
-            background: #0d1117;
-            border: 1px solid #30363d;
-            border-radius: 6px;
+        .result-meta a, .result-author {
+            color: var(--accent);
+            text-decoration: none;
             cursor: pointer;
-            color: #8b949e;
-            font-size: 13px;
-            transition: all 0.2s;
         }
 
-        .tab:hover {
-            border-color: #00d4aa;
+        .result-meta a:hover, .result-author:hover {
+            text-decoration: underline;
         }
 
-        .tab.active {
-            background: #e01b24;
-            color: white;
-            border-color: #e01b24;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #8b949e;
-        }
-
-        .error {
-            background: #3d0c0c;
-            border: 1px solid #e01b24;
-            color: #ff7b7b;
-            padding: 15px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-        }
-
-        .comparison-inputs {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-bottom: 15px;
-        }
-
-        .comparison-result {
-            background: #0d1117;
-            border: 1px solid #30363d;
-            border-radius: 6px;
+        /* Detail Panel */
+        .detail-panel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
             padding: 20px;
-            text-align: center;
-        }
-
-        .similarity-score {
-            font-size: 3em;
-            color: #00d4aa;
-            font-weight: bold;
-        }
-
-        .insight-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 15px;
             margin-top: 20px;
         }
 
-        .insight-card {
-            background: #0d1117;
-            border: 1px solid #30363d;
-            border-radius: 8px;
-            padding: 18px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .insight-card:hover {
-            border-color: #00d4aa;
-            transform: translateY(-2px);
-        }
-
-        .insight-card h3 {
-            color: #e01b24;
-            margin-bottom: 6px;
-            font-size: 15px;
-        }
-
-        .insight-card p {
-            color: #8b949e;
-            font-size: 12px;
-            margin-bottom: 10px;
-        }
-
-        .insight-preview {
-            background: #161b22;
-            border-radius: 4px;
-            padding: 10px;
-            font-size: 12px;
-            color: #58a6ff;
-            min-height: 36px;
-        }
-
-        /* Agent Profile Styles */
-        .profile-header {
+        .detail-header {
             display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 25px;
-            flex-wrap: wrap;
-            gap: 20px;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
         }
 
-        .profile-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-            gap: 15px;
-            margin-bottom: 25px;
-        }
-
-        .profile-stat {
-            background: #0d1117;
+        .detail-back {
+            padding: 6px 10px;
+            background: transparent;
+            border: 1px solid var(--border);
             border-radius: 6px;
-            padding: 15px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.15s;
+        }
+
+        .detail-back:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .detail-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        /* Agent Profile */
+        .agent-profile {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 24px;
+        }
+
+        .agent-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .agent-stat {
+            background: var(--bg-primary);
+            border-radius: 8px;
+            padding: 14px;
             text-align: center;
         }
 
-        .profile-stat-value {
-            font-size: 1.5em;
-            color: #00d4aa;
-            font-weight: bold;
+        .agent-stat .value {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--accent);
         }
 
-        .profile-stat-label {
-            color: #8b949e;
-            font-size: 11px;
+        .agent-stat .label {
+            font-size: 12px;
+            color: var(--text-muted);
             margin-top: 4px;
         }
 
-        .profile-section {
-            margin-top: 25px;
-        }
-
-        .profile-section h3 {
-            color: #e01b24;
-            margin-bottom: 15px;
-            font-size: 16px;
-        }
-
-        /* Topic Graph Styles */
-        #topic-graph-container {
-            width: 100%;
+        /* Network Graph */
+        .graph-container {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
             height: 500px;
-            background: #0d1117;
-            border: 1px solid #30363d;
+            position: relative;
+        }
+
+        .graph-controls {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            display: flex;
+            gap: 8px;
+            z-index: 10;
+        }
+
+        /* Toast Notifications */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 2000;
+        }
+
+        .toast {
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
             border-radius: 8px;
+            font-size: 14px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            animation: slideIn 0.2s ease;
         }
 
-        /* Compare Side by Side */
-        .compare-side-by-side {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-top: 20px;
+        .toast.success { border-left: 3px solid var(--green); }
+        .toast.error { border-left: 3px solid var(--red); }
+        .toast.info { border-left: 3px solid var(--blue); }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
         }
 
-        .compare-column {
-            background: #0d1117;
-            border: 1px solid #30363d;
-            border-radius: 8px;
-            padding: 20px;
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 48px 24px;
+            color: var(--text-muted);
         }
 
-        .compare-column h4 {
-            color: #58a6ff;
-            margin-bottom: 15px;
+        .empty-state .icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
         }
 
-        /* Export button */
-        .export-btn {
-            background: #238636;
-            margin-left: 10px;
+        .empty-state h3 {
+            color: var(--text-secondary);
+            margin-bottom: 8px;
         }
 
-        .export-btn:hover {
-            background: #2ea043;
+        /* Tabs (for sub-navigation) */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
         }
 
-        /* Back button */
-        .back-btn {
-            background: transparent;
-            border: 1px solid #30363d;
-            color: #8b949e;
+        .tab {
             padding: 8px 16px;
-            margin-bottom: 15px;
+            font-size: 14px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.15s;
         }
 
-        .back-btn:hover {
-            border-color: #00d4aa;
-            color: #00d4aa;
+        .tab:hover {
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+        }
+
+        .tab.active {
+            color: var(--accent);
+            background: rgba(0, 212, 170, 0.1);
+        }
+
+        /* Mobile */
+        .mobile-menu-btn {
+            display: none;
+            padding: 8px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            cursor: pointer;
         }
 
         @media (max-width: 768px) {
-            .comparison-inputs, .compare-side-by-side {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .main {
+                margin-left: 0;
+            }
+
+            .mobile-menu-btn {
+                display: block;
+            }
+
+            .content {
+                padding: 16px;
+            }
+
+            .card-grid {
                 grid-template-columns: 1fr;
             }
-            .tabs {
-                overflow-x: auto;
-                flex-wrap: nowrap;
+
+            .agent-profile {
+                grid-template-columns: 1fr;
             }
+
+            .stats-bar {
+                flex-direction: column;
+            }
+
+            .cmd-trigger .text {
+                display: none;
+            }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--border-hover);
+        }
+
+        /* Comparison Grid */
+        .compare-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .compare-input {
+            flex: 1;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Moltbook Analysis</h1>
-            <p class="subtitle">Semantic search and analysis for the agent internet</p>
-        </header>
-
-        <div class="stats" id="stats">
-            <div class="stat-card">
-                <div class="stat-number" id="stat-posts">-</div>
-                <div class="stat-label">Posts</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number" id="stat-comments">-</div>
-                <div class="stat-label">Comments</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number" id="stat-embeddings">-</div>
-                <div class="stat-label">Embeddings</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number" id="stat-upvotes">-</div>
-                <div class="stat-label">Total Upvotes</div>
-            </div>
-        </div>
-
-        <div class="tabs">
-            <div class="tab active" onclick="showTab('search', this)">Search</div>
-            <div class="tab" onclick="showTab('coordination', this)">Coordination</div>
-            <div class="tab" onclick="showTab('insights', this)">Insights</div>
-            <div class="tab" onclick="showTab('topic-graph', this)">Topic Graph</div>
-            <div class="tab" onclick="showTab('compare', this)">Compare</div>
-            <div class="tab" onclick="showTab('trends', this)">Trends</div>
-            <div class="tab" onclick="showTab('agents', this)">Agents</div>
-            <div class="tab" onclick="showTab('status', this)">Status</div>
-        </div>
-
-        <!-- Search Tab -->
-        <div id="search-tab" class="search-section">
-            <h2>Semantic Search</h2>
-            <div class="search-box">
-                <input type="text" id="search-input" placeholder="Enter a query (e.g., 'coordination games', 'agent trust')...">
-                <button onclick="doSearch()" id="search-btn">Search</button>
-                <button onclick="exportSearch()" class="export-btn">Export CSV</button>
-            </div>
-            <div class="search-filters">
-                <label>Type:</label>
-                <select id="search-type">
-                    <option value="">All</option>
-                    <option value="post">Posts only</option>
-                    <option value="comment">Comments only</option>
-                </select>
-                <label>Results:</label>
-                <select id="search-limit">
-                    <option value="10">10</option>
-                    <option value="25">25</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
-                </select>
-                <label style="margin-left: 15px;">
-                    <input type="checkbox" id="search-despam" checked style="margin-right: 5px;">
-                    Despam
-                </label>
-            </div>
-            <div id="search-results" class="results"></div>
-        </div>
-
-        <!-- Coordination Tab (IC-Grade) -->
-        <div id="coordination-tab" class="search-section" style="display:none">
-            <h2>IC-Grade Coordination Detection</h2>
-            <p style="color: #8b949e; margin-bottom: 15px;">Detect coordinated inauthentic behavior, sockpuppets, and influence operations</p>
-
-            <div id="coordination-alert-summary" style="margin-bottom: 20px;"></div>
-
-            <div class="insight-grid">
-                <div class="insight-card" onclick="loadCoordinationInsight('alerts')">
-                    <h3>Active Alerts</h3>
-                    <p>Coordination alerts by severity</p>
-                    <div class="insight-preview" id="coord-alerts-preview">Click to load...</div>
-                </div>
-
-                <div class="insight-card" onclick="loadCoordinationInsight('sockpuppets')">
-                    <h3>Sockpuppet Detection</h3>
-                    <p>Likely same-entity accounts</p>
-                    <div class="insight-preview" id="coord-sockpuppets-preview">Click to load...</div>
-                </div>
-
-                <div class="insight-card" onclick="loadCoordinationInsight('synchronized')">
-                    <h3>Synchronized Posting</h3>
-                    <p>Coordinated content timing</p>
-                    <div class="insight-preview" id="coord-synchronized-preview">Click to load...</div>
-                </div>
-
-                <div class="insight-card" onclick="loadCoordinationInsight('clusters')">
-                    <h3>Coordination Clusters</h3>
-                    <p>Detected coordination groups</p>
-                    <div class="insight-preview" id="coord-clusters-preview">Click to load...</div>
-                </div>
-
-                <div class="insight-card" onclick="loadCoordinationInsight('bursts')">
-                    <h3>Activity Bursts</h3>
-                    <p>Unusual activity spikes</p>
-                    <div class="insight-preview" id="coord-bursts-preview">Click to load...</div>
-                </div>
-
-                <div class="insight-card" onclick="loadCoordinationInsight('narratives')">
-                    <h3>Narrative Tracking</h3>
-                    <p>Coordinated narrative pushes</p>
-                    <div class="insight-preview" id="coord-narratives-preview">Click to load...</div>
-                </div>
-
-                <div class="insight-card" onclick="loadCoordinationInsight('communities')">
-                    <h3>Communities</h3>
-                    <p>Network community detection</p>
-                    <div class="insight-preview" id="coord-communities-preview">Click to load...</div>
-                </div>
-
-                <div class="insight-card" onclick="loadCoordinationInsight('bridges')">
-                    <h3>Bridge Agents</h3>
-                    <p>Cross-community connectors</p>
-                    <div class="insight-preview" id="coord-bridges-preview">Click to load...</div>
-                </div>
-
-                <div class="insight-card" onclick="loadCoordinationInsight('high-risk')">
-                    <h3>High-Risk Agents</h3>
-                    <p>Agents with anomaly scores</p>
-                    <div class="insight-preview" id="coord-risk-preview">Click to load...</div>
+    <div class="app">
+        <!-- Sidebar -->
+        <nav class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-icon">◈</div>
+                    Moltmirror
                 </div>
             </div>
 
-            <div id="coordination-detail" class="results" style="margin-top: 25px;"></div>
-
-            <!-- Sockpuppet Network Visualization -->
-            <div id="sockpuppet-network-container" style="display: none; margin-top: 25px;">
-                <h3 style="color: #e01b24; margin-bottom: 15px;">Sockpuppet Network</h3>
-                <div id="sockpuppet-graph" style="width: 100%; height: 400px; background: #0d1117; border: 1px solid #30363d; border-radius: 8px;"></div>
-            </div>
-        </div>
-
-        <!-- Insights Tab -->
-        <div id="insights-tab" class="search-section" style="display:none">
-            <h2>AI-Powered Insights</h2>
-            <p style="color: #8b949e; margin-bottom: 15px;">Continuous background analysis of Moltbook activity</p>
-
-            <div class="insight-grid">
-                <div class="insight-card" onclick="loadInsight('trending')">
-                    <h3>Trending Agents</h3>
-                    <p>Rising stars with momentum</p>
-                    <div class="insight-preview" id="trending-preview">Click to load...</div>
+            <div class="nav-section">
+                <div class="nav-section-title">Explore</div>
+                <div class="nav-item active" onclick="navigateTo('search')" data-section="search">
+                    <span class="icon">⌕</span>
+                    <span>Search</span>
+                    <span class="kbd">/</span>
                 </div>
-
-                <div class="insight-card" onclick="loadInsight('discussions')">
-                    <h3>Hot Discussions</h3>
-                    <p>High-engagement conversation clusters</p>
-                    <div class="insight-preview" id="discussions-preview">Click to load...</div>
+                <div class="nav-item" onclick="navigateTo('agents')" data-section="agents">
+                    <span class="icon">◎</span>
+                    <span>Agents</span>
+                    <span class="kbd">A</span>
                 </div>
-
-                <div class="insight-card" onclick="loadInsight('network')">
-                    <h3>Network Connectors</h3>
-                    <p>Key nodes in the reply graph</p>
-                    <div class="insight-preview" id="network-preview">Click to load...</div>
-                </div>
-
-                <div class="insight-card" onclick="loadInsight('anomalies')">
-                    <h3>Anomalies</h3>
-                    <p>Viral posts & unusual patterns</p>
-                    <div class="insight-preview" id="anomalies-preview">Click to load...</div>
-                </div>
-
-                <div class="insight-card" onclick="loadInsight('opportunities')">
-                    <h3>Opportunities</h3>
-                    <p>Underserved high-value topics</p>
-                    <div class="insight-preview" id="opportunities-preview">Click to load...</div>
-                </div>
-
-                <div class="insight-card" onclick="loadInsight('predictions')">
-                    <h3>Predictions</h3>
-                    <p>Forecasted hot topics</p>
-                    <div class="insight-preview" id="predictions-preview">Click to load...</div>
-                </div>
-
-                <div class="insight-card" onclick="loadInsight('influence')">
-                    <h3>Author Influence</h3>
-                    <p>Who drives conversations</p>
-                    <div class="insight-preview" id="influence-preview">Click to load...</div>
-                </div>
-
-                <div class="insight-card" onclick="loadInsight('duplicates')">
-                    <h3>Duplicates</h3>
-                    <p>Repeated and similar content</p>
-                    <div class="insight-preview" id="duplicates-preview">Click to load...</div>
-                </div>
-
-                <div class="insight-card" onclick="loadInsight('spam')">
-                    <h3>Spam Detection</h3>
-                    <p>Low-quality content flagged</p>
-                    <div class="insight-preview" id="spam-preview">Click to load...</div>
+                <div class="nav-item" onclick="navigateTo('network')" data-section="network">
+                    <span class="icon">⬡</span>
+                    <span>Network</span>
+                    <span class="kbd">N</span>
                 </div>
             </div>
 
-            <div id="insight-detail" class="results" style="margin-top: 25px;"></div>
-        </div>
-
-        <!-- Topic Graph Tab -->
-        <div id="topic-graph-tab" class="search-section" style="display:none">
-            <h2>Topic Relationship Graph</h2>
-            <p style="color: #8b949e; margin-bottom: 15px;">Interactive visualization of topic co-occurrences</p>
-            <button onclick="loadTopicGraph()">Load Graph</button>
-            <div id="topic-graph-container" style="margin-top: 15px;"></div>
-            <div id="topic-graph-legend" style="margin-top: 15px; color: #8b949e; font-size: 13px;"></div>
-        </div>
-
-        <!-- Compare Tab -->
-        <div id="compare-tab" class="search-section" style="display:none">
-            <h2>Compare Authors</h2>
-            <div class="comparison-inputs">
-                <input type="text" id="author1" placeholder="First author (e.g., eudaemon_0)">
-                <input type="text" id="author2" placeholder="Second author (e.g., Senator_Tommy)">
+            <div class="nav-section">
+                <div class="nav-section-title">Analysis</div>
+                <div class="nav-item" onclick="navigateTo('coordination')" data-section="coordination">
+                    <span class="icon">⚑</span>
+                    <span>Coordination</span>
+                </div>
+                <div class="nav-item" onclick="navigateTo('operators')" data-section="operators">
+                    <span class="icon">⊕</span>
+                    <span>Same Operator</span>
+                </div>
+                <div class="nav-item" onclick="navigateTo('dynamics')" data-section="dynamics">
+                    <span class="icon">↗</span>
+                    <span>Social Dynamics</span>
+                </div>
             </div>
-            <button onclick="doCompare()">Compare</button>
-            <div id="compare-results"></div>
-        </div>
 
-        <!-- Trends Tab -->
-        <div id="trends-tab" class="search-section" style="display:none">
-            <h2>Topic Trends</h2>
-            <div class="search-box">
-                <input type="text" id="trends-input" placeholder="Topic to track (e.g., 'infrastructure')...">
-                <button onclick="doTrends()">Track</button>
+            <div class="nav-section">
+                <div class="nav-section-title">Insights</div>
+                <div class="nav-item" onclick="navigateTo('trending')" data-section="trending">
+                    <span class="icon">△</span>
+                    <span>Trending</span>
+                </div>
+                <div class="nav-item" onclick="navigateTo('anomalies')" data-section="anomalies">
+                    <span class="icon">⚠</span>
+                    <span>Anomalies</span>
+                </div>
+                <div class="nav-item" onclick="navigateTo('content')" data-section="content">
+                    <span class="icon">◫</span>
+                    <span>Content Quality</span>
+                </div>
             </div>
-            <div id="trends-results" class="results"></div>
-        </div>
 
-        <!-- Agents Tab -->
-        <div id="agents-tab" class="search-section" style="display:none">
-            <h2>High-Signal Agents</h2>
-            <button onclick="loadAgents()">Load Agents</button>
-            <div id="agents-results" class="results"></div>
-        </div>
+            <div class="nav-section" style="margin-top: auto; border-top: 1px solid var(--border); padding-top: 16px;">
+                <div class="nav-item" onclick="navigateTo('status')" data-section="status">
+                    <span class="icon">●</span>
+                    <span>System Status</span>
+                </div>
+            </div>
+        </nav>
 
-        <!-- Agent Profile Tab (hidden by default, shown when clicking an agent) -->
-        <div id="agent-profile-tab" class="search-section" style="display:none">
-            <button class="back-btn" onclick="showTab('agents', null)">&larr; Back to Agents</button>
-            <div id="agent-profile-content"></div>
-        </div>
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Top Bar -->
+            <div class="topbar">
+                <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+                <div class="breadcrumb" id="breadcrumb">
+                    <span class="breadcrumb-current">Search</span>
+                </div>
+                <div class="cmd-trigger" onclick="openCommandPalette()">
+                    <span class="text">Quick actions...</span>
+                    <kbd>⌘K</kbd>
+                </div>
+            </div>
 
-        <!-- Status Tab -->
-        <div id="status-tab" class="search-section" style="display:none">
-            <h2>System Status</h2>
-            <p style="color: #8b949e; margin-bottom: 20px;">Sync status, analysis timing, and system health</p>
-            <button onclick="loadStatus()">Refresh Status</button>
-            <div id="status-content" style="margin-top: 20px;"></div>
+            <!-- Content -->
+            <div class="content">
+                <!-- Stats Bar -->
+                <div class="stats-bar" id="stats-bar">
+                    <div class="stat-pill">
+                        <span class="value" id="stat-posts">-</span>
+                        <span class="label">posts</span>
+                    </div>
+                    <div class="stat-pill">
+                        <span class="value" id="stat-comments">-</span>
+                        <span class="label">comments</span>
+                    </div>
+                    <div class="stat-pill" id="embedding-stat">
+                        <span class="value" id="stat-coverage">-</span>
+                        <span class="label">embedded</span>
+                    </div>
+                    <div class="stat-pill">
+                        <span class="value" id="stat-agents">-</span>
+                        <span class="label">agents</span>
+                    </div>
+                </div>
+
+                <!-- Dynamic Content Area -->
+                <div id="page-content">
+                    <!-- Search Page (default) -->
+                    <div id="page-search" class="page">
+                        <div class="page-header">
+                            <h1>Semantic Search</h1>
+                            <p>Find content by meaning, not just keywords</p>
+                        </div>
+
+                        <div class="search-box">
+                            <div class="search-input-wrap">
+                                <span class="search-icon">⌕</span>
+                                <input type="text" class="search-input" id="search-input"
+                                       placeholder="Search for ideas, agents, or topics..."
+                                       onkeydown="if(event.key==='Enter')doSearch()">
+                            </div>
+                            <button class="btn" onclick="doSearch()">Search</button>
+                            <button class="btn btn-secondary" onclick="exportSearch()">Export</button>
+                        </div>
+
+                        <div class="filters">
+                            <select class="filter-select" id="search-type">
+                                <option value="">All content</option>
+                                <option value="post">Posts only</option>
+                                <option value="comment">Comments only</option>
+                            </select>
+                            <select class="filter-select" id="search-limit">
+                                <option value="25">25 results</option>
+                                <option value="50">50 results</option>
+                                <option value="100">100 results</option>
+                            </select>
+                            <label class="filter-checkbox">
+                                <input type="checkbox" id="search-despam" checked>
+                                Filter spam
+                            </label>
+                        </div>
+
+                        <div id="search-results" class="results-list"></div>
+                    </div>
+
+                    <!-- Agents Page -->
+                    <div id="page-agents" class="page" style="display:none">
+                        <div class="page-header">
+                            <h1>Agents</h1>
+                            <p>Browse and analyze LLM agents on Moltbook</p>
+                        </div>
+
+                        <div class="search-box">
+                            <div class="search-input-wrap">
+                                <span class="search-icon">⌕</span>
+                                <input type="text" class="search-input" id="agent-search"
+                                       placeholder="Search agents..."
+                                       oninput="filterAgents(this.value)">
+                            </div>
+                        </div>
+
+                        <div id="agents-list" class="results-list"></div>
+                        <div id="agent-profile" style="display:none"></div>
+                    </div>
+
+                    <!-- Network Page -->
+                    <div id="page-network" class="page" style="display:none">
+                        <div class="page-header">
+                            <h1>Network Graph</h1>
+                            <p>Visualize topic relationships and agent connections</p>
+                        </div>
+
+                        <div class="tabs">
+                            <div class="tab active" onclick="showNetworkTab('topics')">Topics</div>
+                            <div class="tab" onclick="showNetworkTab('agents')">Agent Graph</div>
+                            <div class="tab" onclick="showNetworkTab('communities')">Communities</div>
+                        </div>
+
+                        <div class="graph-container" id="network-graph">
+                            <div class="graph-controls">
+                                <button class="btn btn-secondary btn-sm" onclick="resetGraph()">Reset</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Coordination Page -->
+                    <div id="page-coordination" class="page" style="display:none">
+                        <div class="page-header">
+                            <h1>Coordination Detection</h1>
+                            <p>Detect coordinated behavior and inauthentic activity</p>
+                        </div>
+
+                        <div id="coord-alerts" style="margin-bottom: 24px;"></div>
+
+                        <div class="card-grid" id="coord-cards"></div>
+                        <div id="coord-detail" class="detail-panel" style="display:none"></div>
+                    </div>
+
+                    <!-- Same Operator Page -->
+                    <div id="page-operators" class="page" style="display:none">
+                        <div class="page-header">
+                            <h1>Same Operator Detection</h1>
+                            <p>Find agents likely run by the same person or organization</p>
+                        </div>
+
+                        <div class="section">
+                            <div class="section-header">
+                                <div>
+                                    <div class="section-title">Compare Two Agents</div>
+                                    <div class="section-subtitle">Check if two agents share an operator</div>
+                                </div>
+                            </div>
+                            <div class="search-box">
+                                <input type="text" class="search-input compare-input" id="compare-agent1" placeholder="First agent name">
+                                <input type="text" class="search-input compare-input" id="compare-agent2" placeholder="Second agent name">
+                                <button class="btn" onclick="compareOperators()">Compare</button>
+                            </div>
+                            <div id="compare-result"></div>
+                        </div>
+
+                        <div class="section">
+                            <div class="section-header">
+                                <div class="section-title">Top Candidates</div>
+                            </div>
+                            <div id="operator-candidates" class="results-list"></div>
+                        </div>
+
+                        <div class="section">
+                            <div class="section-header">
+                                <div class="section-title">Operator Clusters</div>
+                            </div>
+                            <div id="operator-clusters" class="card-grid"></div>
+                        </div>
+                    </div>
+
+                    <!-- Social Dynamics Page -->
+                    <div id="page-dynamics" class="page" style="display:none">
+                        <div class="page-header">
+                            <h1>Social Dynamics</h1>
+                            <p>Virality, influence, and adoption patterns</p>
+                        </div>
+
+                        <div class="tabs">
+                            <div class="tab active" onclick="showDynamicsTab('viral')">Viral Content</div>
+                            <div class="tab" onclick="showDynamicsTab('influencers')">Top Influencers</div>
+                            <div class="tab" onclick="showDynamicsTab('adoption')">Tool Adoption</div>
+                        </div>
+
+                        <div id="dynamics-content"></div>
+                    </div>
+
+                    <!-- Trending Page -->
+                    <div id="page-trending" class="page" style="display:none">
+                        <div class="page-header">
+                            <h1>Trending</h1>
+                            <p>Rising agents, hot discussions, and predictions</p>
+                        </div>
+
+                        <div class="card-grid">
+                            <div class="card" onclick="loadTrendingDetail('rising')">
+                                <div class="card-header">
+                                    <span class="card-title">Rising Agents</span>
+                                    <span class="card-badge green">Live</span>
+                                </div>
+                                <div class="card-desc">Agents with increasing engagement</div>
+                                <div class="card-preview" id="preview-rising">
+                                    <div class="skeleton skeleton-text"></div>
+                                    <div class="skeleton skeleton-text short"></div>
+                                </div>
+                            </div>
+
+                            <div class="card" onclick="loadTrendingDetail('discussions')">
+                                <div class="card-header">
+                                    <span class="card-title">Hot Discussions</span>
+                                </div>
+                                <div class="card-desc">Active comment threads</div>
+                                <div class="card-preview" id="preview-discussions">
+                                    <div class="skeleton skeleton-text"></div>
+                                    <div class="skeleton skeleton-text short"></div>
+                                </div>
+                            </div>
+
+                            <div class="card" onclick="loadTrendingDetail('predictions')">
+                                <div class="card-header">
+                                    <span class="card-title">Predicted Trends</span>
+                                </div>
+                                <div class="card-desc">Topics likely to trend</div>
+                                <div class="card-preview" id="preview-predictions">
+                                    <div class="skeleton skeleton-text"></div>
+                                    <div class="skeleton skeleton-text short"></div>
+                                </div>
+                            </div>
+
+                            <div class="card" onclick="loadTrendingDetail('network')">
+                                <div class="card-header">
+                                    <span class="card-title">Network Connectors</span>
+                                </div>
+                                <div class="card-desc">Central agents in conversations</div>
+                                <div class="card-preview" id="preview-network">
+                                    <div class="skeleton skeleton-text"></div>
+                                    <div class="skeleton skeleton-text short"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="trending-detail" class="detail-panel" style="display:none"></div>
+                    </div>
+
+                    <!-- Anomalies Page -->
+                    <div id="page-anomalies" class="page" style="display:none">
+                        <div class="page-header">
+                            <h1>Anomalies</h1>
+                            <p>Unusual patterns and suspicious activity</p>
+                        </div>
+
+                        <div class="card-grid">
+                            <div class="card" onclick="loadAnomalyDetail('bursts')">
+                                <div class="card-header">
+                                    <span class="card-title">Activity Bursts</span>
+                                    <span class="card-badge orange">Alert</span>
+                                </div>
+                                <div class="card-desc">Sudden spikes in activity</div>
+                                <div class="card-preview" id="preview-bursts">
+                                    <div class="skeleton skeleton-text"></div>
+                                </div>
+                            </div>
+
+                            <div class="card" onclick="loadAnomalyDetail('viral')">
+                                <div class="card-header">
+                                    <span class="card-title">Viral Posts</span>
+                                </div>
+                                <div class="card-desc">Unusually fast-spreading content</div>
+                                <div class="card-preview" id="preview-viral">
+                                    <div class="skeleton skeleton-text"></div>
+                                </div>
+                            </div>
+
+                            <div class="card" onclick="loadAnomalyDetail('persona')">
+                                <div class="card-header">
+                                    <span class="card-title">Persona Shifts</span>
+                                    <span class="card-badge red">High</span>
+                                </div>
+                                <div class="card-desc">Sudden personality changes</div>
+                                <div class="card-preview" id="preview-persona">
+                                    <div class="skeleton skeleton-text"></div>
+                                </div>
+                            </div>
+
+                            <div class="card" onclick="loadAnomalyDetail('synchronized')">
+                                <div class="card-header">
+                                    <span class="card-title">Synchronized Activity</span>
+                                </div>
+                                <div class="card-desc">Coordinated posting patterns</div>
+                                <div class="card-preview" id="preview-synchronized">
+                                    <div class="skeleton skeleton-text"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="anomaly-detail" class="detail-panel" style="display:none"></div>
+                    </div>
+
+                    <!-- Content Quality Page -->
+                    <div id="page-content" class="page" style="display:none">
+                        <div class="page-header">
+                            <h1>Content Quality</h1>
+                            <p>Spam, duplicates, and content analysis</p>
+                        </div>
+
+                        <div class="card-grid">
+                            <div class="card" onclick="loadContentDetail('spam')">
+                                <div class="card-header">
+                                    <span class="card-title">Spam Detection</span>
+                                    <span class="card-badge red" id="spam-count">-</span>
+                                </div>
+                                <div class="card-desc">Low-quality and spam content</div>
+                                <div class="card-preview" id="preview-spam">
+                                    <div class="skeleton skeleton-text"></div>
+                                </div>
+                            </div>
+
+                            <div class="card" onclick="loadContentDetail('duplicates')">
+                                <div class="card-header">
+                                    <span class="card-title">Duplicates</span>
+                                </div>
+                                <div class="card-desc">Exact and near-duplicate content</div>
+                                <div class="card-preview" id="preview-duplicates">
+                                    <div class="skeleton skeleton-text"></div>
+                                </div>
+                            </div>
+
+                            <div class="card" onclick="loadContentDetail('copy-chains')">
+                                <div class="card-header">
+                                    <span class="card-title">Copy Chains</span>
+                                </div>
+                                <div class="card-desc">Content copied across agents</div>
+                                <div class="card-preview" id="preview-copy">
+                                    <div class="skeleton skeleton-text"></div>
+                                </div>
+                            </div>
+
+                            <div class="card" onclick="loadContentDetail('amplification')">
+                                <div class="card-header">
+                                    <span class="card-title">Amplification</span>
+                                </div>
+                                <div class="card-desc">Derivative content metrics</div>
+                                <div class="card-preview" id="preview-amp">
+                                    <div class="skeleton skeleton-text"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="content-detail" class="detail-panel" style="display:none"></div>
+                    </div>
+
+                    <!-- System Status Page -->
+                    <div id="page-status" class="page" style="display:none">
+                        <div class="page-header">
+                            <h1>System Status</h1>
+                            <p>Database, sync, and analysis status</p>
+                        </div>
+
+                        <div id="status-content" class="card-grid"></div>
+
+                        <div class="section" style="margin-top: 24px;">
+                            <div class="section-header">
+                                <div class="section-title">Analysis Schedule</div>
+                            </div>
+                            <div id="analysis-schedule" class="results-list"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Command Palette -->
+    <div class="cmd-overlay" id="cmd-overlay" onclick="if(event.target===this)closeCommandPalette()">
+        <div class="cmd-palette">
+            <div class="cmd-input-wrap">
+                <input type="text" class="cmd-input" id="cmd-input"
+                       placeholder="Type a command or search..."
+                       oninput="filterCommands(this.value)"
+                       onkeydown="handleCmdKeydown(event)">
+            </div>
+            <div class="cmd-results" id="cmd-results">
+                <div class="cmd-group-title">Navigation</div>
+                <div class="cmd-item" data-action="search"><span class="icon">⌕</span><span class="label">Search</span><span class="hint">/</span></div>
+                <div class="cmd-item" data-action="agents"><span class="icon">◎</span><span class="label">Agents</span><span class="hint">A</span></div>
+                <div class="cmd-item" data-action="network"><span class="icon">⬡</span><span class="label">Network</span><span class="hint">N</span></div>
+                <div class="cmd-item" data-action="coordination"><span class="icon">⚑</span><span class="label">Coordination</span></div>
+                <div class="cmd-item" data-action="operators"><span class="icon">⊕</span><span class="label">Same Operator</span></div>
+                <div class="cmd-item" data-action="dynamics"><span class="icon">↗</span><span class="label">Social Dynamics</span></div>
+                <div class="cmd-item" data-action="status"><span class="icon">●</span><span class="label">System Status</span></div>
+                <div class="cmd-group-title">Quick Actions</div>
+                <div class="cmd-item" data-action="refresh"><span class="icon">↻</span><span class="label">Refresh data</span></div>
+                <div class="cmd-item" data-action="export"><span class="icon">↓</span><span class="label">Export search results</span></div>
+            </div>
         </div>
     </div>
 
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
     <script>
         const API_BASE = '/api';
+        let currentSection = 'search';
+        let cmdSelectedIndex = 0;
+        let networkInstance = null;
 
-        // Load stats on page load
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadStats();
+            loadPreviews();
+            setupKeyboardShortcuts();
+        });
+
+        // Keyboard shortcuts
+        function setupKeyboardShortcuts() {
+            document.addEventListener('keydown', (e) => {
+                // Ignore if typing in input
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                    if (e.key === 'Escape') {
+                        e.target.blur();
+                        closeCommandPalette();
+                    }
+                    return;
+                }
+
+                // Command palette
+                if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                    e.preventDefault();
+                    openCommandPalette();
+                    return;
+                }
+
+                // Quick nav
+                switch(e.key) {
+                    case '/':
+                        e.preventDefault();
+                        navigateTo('search');
+                        setTimeout(() => document.getElementById('search-input').focus(), 100);
+                        break;
+                    case 'a':
+                    case 'A':
+                        navigateTo('agents');
+                        break;
+                    case 'n':
+                    case 'N':
+                        navigateTo('network');
+                        break;
+                    case 'Escape':
+                        closeAllPanels();
+                        break;
+                }
+            });
+        }
+
+        // Navigation
+        function navigateTo(section) {
+            currentSection = section;
+
+            // Update nav
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.toggle('active', item.dataset.section === section);
+            });
+
+            // Update breadcrumb
+            const titles = {
+                search: 'Search', agents: 'Agents', network: 'Network',
+                coordination: 'Coordination', operators: 'Same Operator',
+                dynamics: 'Social Dynamics', trending: 'Trending',
+                anomalies: 'Anomalies', content: 'Content Quality', status: 'System Status'
+            };
+            document.getElementById('breadcrumb').innerHTML =
+                `<span class="breadcrumb-current">${titles[section] || section}</span>`;
+
+            // Show page
+            document.querySelectorAll('.page').forEach(page => {
+                page.style.display = 'none';
+            });
+            const pageEl = document.getElementById(`page-${section}`);
+            if (pageEl) {
+                pageEl.style.display = 'block';
+                loadPageData(section);
+            }
+
+            closeCommandPalette();
+            closeSidebar();
+        }
+
+        // Load page-specific data
+        async function loadPageData(section) {
+            switch(section) {
+                case 'agents':
+                    loadAgentsList();
+                    break;
+                case 'network':
+                    loadNetworkGraph();
+                    break;
+                case 'coordination':
+                    loadCoordinationData();
+                    break;
+                case 'operators':
+                    loadOperatorData();
+                    break;
+                case 'dynamics':
+                    loadDynamicsData('viral');
+                    break;
+                case 'trending':
+                    loadTrendingPreviews();
+                    break;
+                case 'anomalies':
+                    loadAnomalyPreviews();
+                    break;
+                case 'content':
+                    loadContentPreviews();
+                    break;
+                case 'status':
+                    loadStatus();
+                    break;
+            }
+        }
+
+        // Stats
         async function loadStats() {
             try {
                 const res = await fetch(`${API_BASE}/stats`);
                 const data = await res.json();
-                document.getElementById('stat-posts').textContent = data.posts.toLocaleString();
-                document.getElementById('stat-comments').textContent = data.comments.toLocaleString();
-                document.getElementById('stat-embeddings').textContent = data.embeddings.toLocaleString();
-                document.getElementById('stat-upvotes').textContent = data.total_upvotes.toLocaleString();
+                document.getElementById('stat-posts').textContent = formatNumber(data.posts || 0);
+                document.getElementById('stat-comments').textContent = formatNumber(data.comments || 0);
+                document.getElementById('stat-agents').textContent = formatNumber(data.unique_authors || 0);
+
+                // Embedding coverage
+                const coverageRes = await fetch(`${API_BASE}/embeddings/status`);
+                const coverage = await coverageRes.json();
+                const pct = coverage.coverage_percent || 0;
+                document.getElementById('stat-coverage').textContent = pct.toFixed(0) + '%';
+
+                const embeddingStat = document.getElementById('embedding-stat');
+                if (pct < 50) embeddingStat.classList.add('error');
+                else if (pct < 90) embeddingStat.classList.add('warning');
             } catch (e) {
                 console.error('Failed to load stats:', e);
             }
         }
 
-        function showTab(tab, clickedElement) {
-            // Update tab buttons
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            if (clickedElement) {
-                clickedElement.classList.add('active');
-            }
-
-            // Hide all tabs
-            const tabs = ['search', 'coordination', 'insights', 'topic-graph', 'compare', 'trends', 'agents', 'agent-profile', 'status'];
-            tabs.forEach(t => {
-                const el = document.getElementById(`${t}-tab`);
-                if (el) el.style.display = 'none';
-            });
-
-            // Show selected tab
-            const selectedTab = document.getElementById(`${tab}-tab`);
-            if (selectedTab) selectedTab.style.display = 'block';
-
-            // Auto-load status when switching to status tab
-            if (tab === 'status') {
-                loadStatus();
-            }
-
-            // Auto-load coordination summary when switching to coordination tab
-            if (tab === 'coordination') {
-                loadCoordinationSummary();
-            }
+        // Load card previews
+        async function loadPreviews() {
+            // Will be loaded when navigating to specific pages
         }
 
+        // Search
         async function doSearch() {
-            const query = document.getElementById('search-input').value;
+            const query = document.getElementById('search-input').value.trim();
             if (!query) return;
 
-            const btn = document.getElementById('search-btn');
-            btn.disabled = true;
-            btn.textContent = 'Searching...';
-
-            const contentType = document.getElementById('search-type').value;
-            const topK = parseInt(document.getElementById('search-limit').value);
+            const type = document.getElementById('search-type').value;
+            const limit = document.getElementById('search-limit').value;
             const despam = document.getElementById('search-despam').checked;
 
-            try {
-                const res = await fetch(`${API_BASE}/search`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({query, top_k: topK, content_type: contentType || null, despam})
-                });
-
-                const results = await res.json();
-                displayResults(results);
-            } catch (e) {
-                document.getElementById('search-results').innerHTML =
-                    `<div class="error">Error: ${e.message}</div>`;
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Search';
-            }
-        }
-
-        function displayResults(results) {
             const container = document.getElementById('search-results');
-            if (results.length === 0) {
-                container.innerHTML = '<div class="loading">No results found</div>';
-                return;
-            }
-
-            container.innerHTML = results.map(r => `
-                <div class="result-item">
-                    <div class="result-header">
-                        <span class="result-type ${r.content_type}">${r.content_type}</span>
-                        <span class="similarity">${(r.similarity * 100).toFixed(1)}% match</span>
-                    </div>
-                    ${r.title ? `<div class="result-title">${escapeHtml(r.title)}</div>` : ''}
-                    <div class="result-author" onclick="loadAgentProfile('${escapeHtml(r.author || '')}')">
-                        ${escapeHtml(r.author || 'Unknown')}
-                    </div>
-                    <div class="result-content">${escapeHtml(r.content)}</div>
-                    <div class="result-meta">${r.upvotes} upvotes${r.created_at ? ' · ' + formatDate(r.created_at) : ''}</div>
-                </div>
-            `).join('');
-        }
-
-        async function exportSearch() {
-            const query = document.getElementById('search-input').value;
-            if (!query) {
-                alert('Enter a search query first');
-                return;
-            }
-
-            const contentType = document.getElementById('search-type').value;
-            const url = `${API_BASE}/export/search?query=${encodeURIComponent(query)}&format=csv&top_k=100${contentType ? '&content_type=' + contentType : ''}`;
-            window.open(url, '_blank');
-        }
-
-        async function doCompare() {
-            const author1 = document.getElementById('author1').value;
-            const author2 = document.getElementById('author2').value;
-            if (!author1 || !author2) return;
+            container.innerHTML = '<div class="skeleton skeleton-text"></div>'.repeat(5);
 
             try {
-                // Fetch comparison and both profiles in parallel
-                const [compareRes, profile1Res, profile2Res] = await Promise.all([
-                    fetch(`${API_BASE}/compare`, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({author1, author2})
-                    }),
-                    fetch(`${API_BASE}/agent/${encodeURIComponent(author1)}`),
-                    fetch(`${API_BASE}/agent/${encodeURIComponent(author2)}`)
-                ]);
+                let url = `${API_BASE}/search?query=${encodeURIComponent(query)}&top_k=${limit}&despam=${despam}`;
+                if (type) url += `&content_type=${type}`;
 
-                const data = await compareRes.json();
-                const profile1 = profile1Res.ok ? await profile1Res.json() : null;
-                const profile2 = profile2Res.ok ? await profile2Res.json() : null;
+                const res = await fetch(url);
+                const data = await res.json();
 
-                let html = `
-                    <div class="comparison-result">
-                        <div class="similarity-score">${(data.similarity * 100).toFixed(1)}%</div>
-                        <p>Writing style similarity between <strong>${escapeHtml(data.author1)}</strong>
-                           and <strong>${escapeHtml(data.author2)}</strong></p>
-                    </div>
-                `;
-
-                if (profile1 && profile2) {
-                    html += `
-                        <div class="compare-side-by-side">
-                            <div class="compare-column">
-                                <h4>${escapeHtml(author1)}</h4>
-                                <p>Posts: ${profile1.stats.posts}</p>
-                                <p>Comments: ${profile1.stats.comments}</p>
-                                <p>Avg Upvotes: ${profile1.stats.avg_upvotes}</p>
-                                <p>Total Upvotes: ${profile1.stats.total_upvotes}</p>
-                                <p>Topics: ${profile1.topics.map(t => t.topic).join(', ') || 'N/A'}</p>
-                            </div>
-                            <div class="compare-column">
-                                <h4>${escapeHtml(author2)}</h4>
-                                <p>Posts: ${profile2.stats.posts}</p>
-                                <p>Comments: ${profile2.stats.comments}</p>
-                                <p>Avg Upvotes: ${profile2.stats.avg_upvotes}</p>
-                                <p>Total Upvotes: ${profile2.stats.total_upvotes}</p>
-                                <p>Topics: ${profile2.topics.map(t => t.topic).join(', ') || 'N/A'}</p>
-                            </div>
+                if (!data.results?.length) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="icon">⌕</div>
+                            <h3>No results found</h3>
+                            <p>Try different keywords or broaden your search</p>
                         </div>
                     `;
-                }
-
-                document.getElementById('compare-results').innerHTML = html;
-            } catch (e) {
-                document.getElementById('compare-results').innerHTML =
-                    `<div class="error">Error: ${e.message}</div>`;
-            }
-        }
-
-        async function doTrends() {
-            const query = document.getElementById('trends-input').value;
-            if (!query) return;
-
-            try {
-                const res = await fetch(`${API_BASE}/trends`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({query})
-                });
-
-                const results = await res.json();
-                const container = document.getElementById('trends-results');
-
-                if (results.length === 0) {
-                    container.innerHTML = '<div class="loading">No trends found</div>';
                     return;
                 }
 
-                container.innerHTML = results.slice(-15).map(r => `
-                    <div class="result-item">
+                container.innerHTML = data.results.map(r => `
+                    <div class="result-item" onclick="viewContent('${r.content_type}', '${escapeHtml(r.content_id)}')">
                         <div class="result-header">
-                            <span>${formatDate(r.created_at)}</span>
-                            <span class="similarity">${(r.similarity * 100).toFixed(1)}%</span>
+                            <span class="result-badge ${r.content_type}">${r.content_type}</span>
+                            <span class="result-score">${(r.similarity * 100).toFixed(1)}% match</span>
                         </div>
-                        <div class="result-title">${escapeHtml(r.title)}</div>
-                        <div class="result-meta">${r.upvotes} upvotes</div>
-                    </div>
-                `).join('');
-            } catch (e) {
-                document.getElementById('trends-results').innerHTML =
-                    `<div class="error">Error: ${e.message}</div>`;
-            }
-        }
-
-        async function loadAgents() {
-            try {
-                const res = await fetch(`${API_BASE}/agents?min_posts=3&min_avg_upvotes=2.0`);
-                const agents = await res.json();
-
-                const container = document.getElementById('agents-results');
-                container.innerHTML = agents.slice(0, 30).map(a => `
-                    <div class="result-item" onclick="loadAgentProfile('${escapeHtml(a.author)}')">
-                        <div class="result-title">${escapeHtml(a.author)}</div>
+                        ${r.title ? `<div class="result-title">${escapeHtml(r.title)}</div>` : ''}
+                        <div class="result-content">${escapeHtml(r.content?.substring(0, 200) || '')}</div>
                         <div class="result-meta">
-                            ${a.posts} posts · ${a.avg_upvotes} avg upvotes · ${a.total_upvotes} total upvotes
+                            <span class="result-author" onclick="event.stopPropagation();loadAgentProfile('${escapeHtml(r.author || '')}')">${escapeHtml(r.author || 'Unknown')}</span>
+                            ${r.upvotes !== undefined ? `<span>↑ ${r.upvotes}</span>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+
+            } catch (e) {
+                container.innerHTML = `<div class="empty-state"><h3>Search failed</h3><p>${e.message}</p></div>`;
+            }
+        }
+
+        // Export search
+        async function exportSearch() {
+            const query = document.getElementById('search-input').value.trim();
+            if (!query) {
+                showToast('Enter a search query first', 'info');
+                return;
+            }
+
+            const type = document.getElementById('search-type').value;
+            const limit = document.getElementById('search-limit').value;
+            const despam = document.getElementById('search-despam').checked;
+
+            let url = `${API_BASE}/export/search?query=${encodeURIComponent(query)}&top_k=${limit}&format=csv&despam=${despam}`;
+            if (type) url += `&content_type=${type}`;
+
+            window.open(url, '_blank');
+            showToast('Export started', 'success');
+        }
+
+        // Agents
+        async function loadAgentsList() {
+            const container = document.getElementById('agents-list');
+            container.innerHTML = '<div class="skeleton skeleton-text"></div>'.repeat(10);
+
+            try {
+                const res = await fetch(`${API_BASE}/agents?sort=posts&limit=50`);
+                const data = await res.json();
+
+                container.innerHTML = data.map(agent => `
+                    <div class="result-item" onclick="loadAgentProfile('${escapeHtml(agent.name || agent.author_name)}')">
+                        <div class="result-header">
+                            <span class="result-title">${escapeHtml(agent.name || agent.author_name)}</span>
+                            <span class="card-badge green">${agent.post_count || 0} posts</span>
+                        </div>
+                        <div class="result-meta">
+                            <span>Comments: ${agent.comment_count || 0}</span>
+                            <span>Avg ↑: ${(agent.avg_upvotes || 0).toFixed(1)}</span>
                         </div>
                     </div>
                 `).join('');
             } catch (e) {
-                document.getElementById('agents-results').innerHTML =
-                    `<div class="error">Error: ${e.message}</div>`;
+                container.innerHTML = `<div class="empty-state"><h3>Failed to load agents</h3></div>`;
             }
         }
 
-        async function loadAgentProfile(authorName) {
-            if (!authorName) return;
+        async function loadAgentProfile(name) {
+            if (!name) return;
 
-            showTab('agent-profile', null);
-            const container = document.getElementById('agent-profile-content');
-            container.innerHTML = '<div class="loading">Loading profile...</div>';
+            const listEl = document.getElementById('agents-list');
+            const profileEl = document.getElementById('agent-profile');
+
+            listEl.style.display = 'none';
+            profileEl.style.display = 'block';
+            profileEl.innerHTML = '<div class="skeleton skeleton-text"></div>'.repeat(5);
 
             try {
-                const res = await fetch(`${API_BASE}/agent/${encodeURIComponent(authorName)}`);
-                if (!res.ok) throw new Error('Agent not found');
+                const res = await fetch(`${API_BASE}/agent/${encodeURIComponent(name)}`);
+                const data = await res.json();
 
-                const profile = await res.json();
-
-                container.innerHTML = `
-                    <div class="profile-header">
-                        <h2>${escapeHtml(profile.author)}</h2>
-                        <button onclick="window.open('${API_BASE}/export/agent/${encodeURIComponent(authorName)}?format=csv', '_blank')" class="export-btn">Export Posts CSV</button>
+                profileEl.innerHTML = `
+                    <div class="detail-header">
+                        <button class="detail-back" onclick="closeAgentProfile()">← Back</button>
+                        <span class="detail-title">${escapeHtml(name)}</span>
                     </div>
-
-                    <div class="profile-stats">
-                        <div class="profile-stat">
-                            <div class="profile-stat-value">${profile.stats.posts}</div>
-                            <div class="profile-stat-label">Posts</div>
-                        </div>
-                        <div class="profile-stat">
-                            <div class="profile-stat-value">${profile.stats.comments}</div>
-                            <div class="profile-stat-label">Comments</div>
-                        </div>
-                        <div class="profile-stat">
-                            <div class="profile-stat-value">${profile.stats.avg_upvotes}</div>
-                            <div class="profile-stat-label">Avg Upvotes</div>
-                        </div>
-                        <div class="profile-stat">
-                            <div class="profile-stat-value">${profile.stats.total_upvotes}</div>
-                            <div class="profile-stat-label">Total Upvotes</div>
-                        </div>
-                        <div class="profile-stat">
-                            <div class="profile-stat-value">${profile.stats.avg_comments}</div>
-                            <div class="profile-stat-label">Avg Comments</div>
-                        </div>
-                    </div>
-
-                    <div class="profile-section">
-                        <h3>Top Posts</h3>
-                        <div class="results">
-                            ${profile.top_posts.map(p => `
-                                <div class="result-item">
-                                    <div class="result-title">${escapeHtml(p.title)}</div>
-                                    <div class="result-meta">${p.upvotes} upvotes · ${p.comments} comments · ${formatDate(p.created_at)}</div>
+                    <div class="agent-profile">
+                        <div>
+                            <div class="agent-stats">
+                                <div class="agent-stat">
+                                    <div class="value">${data.post_count || 0}</div>
+                                    <div class="label">Posts</div>
                                 </div>
-                            `).join('')}
+                                <div class="agent-stat">
+                                    <div class="value">${data.comment_count || 0}</div>
+                                    <div class="label">Comments</div>
+                                </div>
+                                <div class="agent-stat">
+                                    <div class="value">${(data.avg_upvotes || 0).toFixed(1)}</div>
+                                    <div class="label">Avg Upvotes</div>
+                                </div>
+                                <div class="agent-stat">
+                                    <div class="value">${data.karma || 0}</div>
+                                    <div class="label">Karma</div>
+                                </div>
+                            </div>
+                            ${data.description ? `<p style="margin-top: 16px; color: var(--text-secondary);">${escapeHtml(data.description)}</p>` : ''}
+                        </div>
+                        <div>
+                            <div class="section-title" style="margin-bottom: 12px;">Recent Posts</div>
+                            <div class="results-list">
+                                ${(data.recent_posts || []).slice(0, 5).map(p => `
+                                    <div class="result-item">
+                                        <div class="result-title">${escapeHtml(p.title || '')}</div>
+                                        <div class="result-meta">
+                                            <span>↑ ${p.upvotes || 0}</span>
+                                            <span>${p.comment_count || 0} comments</span>
+                                        </div>
+                                    </div>
+                                `).join('') || '<div class="empty-state"><p>No posts</p></div>'}
+                            </div>
                         </div>
                     </div>
-
-                    ${profile.topics.length > 0 ? `
-                        <div class="profile-section">
-                            <h3>Topic Distribution</h3>
-                            <div class="results">
-                                ${profile.topics.map(t => `
-                                    <div class="result-item" style="display: inline-block; margin-right: 10px; margin-bottom: 10px;">
-                                        ${escapeHtml(t.topic)}: ${t.count} posts
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                    ` : ''}
-
-                    ${profile.connections.length > 0 ? `
-                        <div class="profile-section">
-                            <h3>Most Interacts With</h3>
-                            <div class="results">
-                                ${profile.connections.map(c => `
-                                    <div class="result-item" onclick="loadAgentProfile('${escapeHtml(c.author)}')" style="display: inline-block; margin-right: 10px; margin-bottom: 10px; cursor: pointer;">
-                                        ${escapeHtml(c.author)}: ${c.interactions} interactions
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                    ` : ''}
-
-                    ${profile.activity_timeline.length > 0 ? `
-                        <div class="profile-section">
-                            <h3>Recent Activity</h3>
-                            <div class="results">
-                                ${profile.activity_timeline.map(a => `
-                                    <div class="result-item" style="display: inline-block; margin-right: 10px; margin-bottom: 10px;">
-                                        Week ${a.week}: ${a.posts} posts, ${a.upvotes} upvotes
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                    ` : ''}
                 `;
             } catch (e) {
-                container.innerHTML = `<div class="error">Error: ${e.message}</div>`;
+                profileEl.innerHTML = `<div class="empty-state"><h3>Agent not found</h3></div>`;
             }
         }
 
-        async function loadTopicGraph() {
-            const container = document.getElementById('topic-graph-container');
-            const legend = document.getElementById('topic-graph-legend');
+        function closeAgentProfile() {
+            document.getElementById('agents-list').style.display = 'block';
+            document.getElementById('agent-profile').style.display = 'none';
+        }
+
+        function filterAgents(query) {
+            const items = document.querySelectorAll('#agents-list .result-item');
+            const q = query.toLowerCase();
+            items.forEach(item => {
+                const name = item.querySelector('.result-title')?.textContent?.toLowerCase() || '';
+                item.style.display = name.includes(q) ? 'block' : 'none';
+            });
+        }
+
+        // Network Graph
+        async function loadNetworkGraph() {
+            const container = document.getElementById('network-graph');
 
             try {
                 const res = await fetch(`${API_BASE}/insights/topic-graph`);
-                if (!res.ok) throw new Error('Topic graph not available yet');
-
                 const data = await res.json();
 
-                // Create nodes
-                const nodes = new vis.DataSet(data.nodes.map(n => ({
+                const nodes = (data.nodes || []).map(n => ({
                     id: n.id,
-                    label: n.label,
-                    value: n.size,
-                    title: `${n.label}: ${n.size} posts`,
-                    color: {
-                        background: '#e01b24',
-                        border: '#ff3b3b',
-                        highlight: {background: '#00d4aa', border: '#00ffcc'}
-                    },
-                    font: {color: '#c9d1d9'}
-                })));
+                    label: n.label || n.id,
+                    value: n.size || 10,
+                    color: '#00d4aa'
+                }));
 
-                // Create edges
-                const edges = new vis.DataSet(data.edges.map(e => ({
+                const edges = (data.edges || []).map(e => ({
                     from: e.source,
                     to: e.target,
-                    value: e.weight,
-                    title: `${e.weight} co-occurrences (${(e.strength * 100).toFixed(1)}% Jaccard)`,
-                    color: {color: '#30363d', highlight: '#00d4aa'}
-                })));
+                    value: e.weight || 1
+                }));
 
-                // Render network
-                const network = new vis.Network(container, {nodes, edges}, {
+                const visData = { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) };
+                const options = {
                     nodes: {
                         shape: 'dot',
-                        scaling: {min: 10, max: 50},
-                        font: {size: 14}
+                        font: { color: '#e6edf3', size: 12 }
                     },
                     edges: {
-                        width: 1,
-                        scaling: {min: 1, max: 5}
+                        color: { color: '#30363d', hover: '#00d4aa' },
+                        smooth: { type: 'continuous' }
                     },
                     physics: {
-                        stabilization: {iterations: 100},
-                        barnesHut: {gravitationalConstant: -3000}
+                        stabilization: { iterations: 100 },
+                        barnesHut: { gravitationalConstant: -2000 }
                     },
                     interaction: {
                         hover: true,
                         tooltipDelay: 100
                     }
-                });
+                };
 
-                // Legend
-                if (data.trending_topics && data.trending_topics.length > 0) {
-                    legend.innerHTML = `<strong>Trending (24h):</strong> ${data.trending_topics.map(t => `${t.topic} (${t.posts_24h})`).join(', ')}`;
-                }
-
+                if (networkInstance) networkInstance.destroy();
+                networkInstance = new vis.Network(container, visData, options);
             } catch (e) {
-                container.innerHTML = `<div class="error" style="padding: 50px; text-align: center;">Error: ${e.message}<br><br>Try loading insights first to trigger analysis.</div>`;
+                container.innerHTML = `<div class="empty-state"><h3>Failed to load graph</h3></div>`;
             }
         }
 
-        // Insights
-        async function loadInsight(type) {
-            const detailContainer = document.getElementById('insight-detail');
-            detailContainer.innerHTML = '<div class="loading">Loading insights...</div>';
+        function resetGraph() {
+            if (networkInstance) {
+                networkInstance.fit();
+            }
+        }
+
+        // Coordination
+        async function loadCoordinationData() {
+            const cardsContainer = document.getElementById('coord-cards');
+            cardsContainer.innerHTML = `
+                <div class="card" onclick="loadCoordDetail('alerts')">
+                    <div class="card-header">
+                        <span class="card-title">Active Alerts</span>
+                        <span class="card-badge red" id="alert-count">-</span>
+                    </div>
+                    <div class="card-desc">Coordination alerts by severity</div>
+                    <div class="card-preview" id="preview-alerts"><div class="skeleton skeleton-text"></div></div>
+                </div>
+                <div class="card" onclick="loadCoordDetail('sockpuppets')">
+                    <div class="card-header"><span class="card-title">Sockpuppets</span></div>
+                    <div class="card-desc">Likely same-entity accounts</div>
+                    <div class="card-preview" id="preview-sockpuppets"><div class="skeleton skeleton-text"></div></div>
+                </div>
+                <div class="card" onclick="loadCoordDetail('clusters')">
+                    <div class="card-header"><span class="card-title">Coordination Clusters</span></div>
+                    <div class="card-desc">Groups acting together</div>
+                    <div class="card-preview" id="preview-clusters"><div class="skeleton skeleton-text"></div></div>
+                </div>
+                <div class="card" onclick="loadCoordDetail('narratives')">
+                    <div class="card-header"><span class="card-title">Narratives</span></div>
+                    <div class="card-desc">Tracked narrative campaigns</div>
+                    <div class="card-preview" id="preview-narratives"><div class="skeleton skeleton-text"></div></div>
+                </div>
+            `;
+
+            // Load previews
+            try {
+                const alertRes = await fetch(`${API_BASE}/insights/alert-summary`);
+                const alertData = await alertRes.json();
+                const total = (alertData.by_severity?.high || 0) + (alertData.by_severity?.medium || 0);
+                document.getElementById('alert-count').textContent = total;
+                document.getElementById('preview-alerts').innerHTML = `
+                    <div class="stat"><span>High</span><span class="stat-value" style="color:var(--red)">${alertData.by_severity?.high || 0}</span></div>
+                    <div class="stat"><span>Medium</span><span class="stat-value" style="color:var(--orange)">${alertData.by_severity?.medium || 0}</span></div>
+                `;
+            } catch (e) {}
+        }
+
+        async function loadCoordDetail(type) {
+            const panel = document.getElementById('coord-detail');
+            panel.style.display = 'block';
+            panel.innerHTML = '<div class="skeleton skeleton-text"></div>'.repeat(5);
+
+            const endpoints = {
+                alerts: '/insights/alert-summary',
+                sockpuppets: '/insights/sockpuppets',
+                clusters: '/insights/coordination-clusters',
+                narratives: '/insights/narratives'
+            };
 
             try {
-                const endpoint = type === 'spam' ? 'spam' :
-                                type === 'duplicates' ? 'duplicates' :
-                                type === 'influence' ? 'influence' : type;
-                const res = await fetch(`${API_BASE}/insights/${endpoint}`);
+                const res = await fetch(`${API_BASE}${endpoints[type]}`);
                 const data = await res.json();
 
-                updateInsightPreview(type, data);
-                displayInsightDetail(type, data);
+                panel.innerHTML = `
+                    <div class="detail-header">
+                        <button class="detail-back" onclick="document.getElementById('coord-detail').style.display='none'">← Back</button>
+                        <span class="detail-title">${type.charAt(0).toUpperCase() + type.slice(1)}</span>
+                    </div>
+                    <pre style="overflow-x: auto; font-size: 12px; color: var(--text-secondary);">${JSON.stringify(data, null, 2)}</pre>
+                `;
             } catch (e) {
-                detailContainer.innerHTML = `<div class="error">Error loading insights: ${e.message}</div>`;
+                panel.innerHTML = `<div class="empty-state"><h3>Failed to load</h3></div>`;
             }
         }
 
-        function updateInsightPreview(type, data) {
-            const preview = document.getElementById(`${type}-preview`);
-            if (!preview) return;
+        // Same Operator
+        async function loadOperatorData() {
+            const candidatesContainer = document.getElementById('operator-candidates');
+            const clustersContainer = document.getElementById('operator-clusters');
 
-            switch(type) {
-                case 'trending':
-                    const top = data.rising_agents?.[0];
-                    preview.textContent = top ? `${top.author} (+${top.growth_percent}%)` : 'No data yet';
-                    break;
-                case 'discussions':
-                    const hot = data.hot_discussions?.[0];
-                    preview.textContent = hot ? `"${hot.title?.substring(0, 35)}..." (${hot.comment_count} comments)` : 'No data yet';
-                    break;
-                case 'network':
-                    const connector = data.network_connectors?.[0];
-                    preview.textContent = connector ? `${connector.agent} (${connector.total_connections} connections)` : 'No data yet';
-                    break;
-                case 'anomalies':
-                    const viral = data.viral_posts?.[0];
-                    preview.textContent = viral ? `"${viral.title?.substring(0, 30)}..." (${viral.upvotes} upvotes)` : 'No data yet';
-                    break;
-                case 'opportunities':
-                    const opp = data.content_opportunities?.[0];
-                    preview.textContent = opp ? `${opp.topic}: ${opp.avg_upvotes} avg upvotes` : 'No data yet';
-                    break;
-                case 'predictions':
-                    const pred = data.predicted_trends?.[0];
-                    preview.textContent = pred ? `${pred.topic}: ${pred.viral_potential} potential` : 'No data yet';
-                    break;
-                case 'influence':
-                    const inf = data.top_influencers?.[0];
-                    preview.textContent = inf ? `${inf.author}: ${inf.influence_score} score` : 'No data yet';
-                    break;
-                case 'duplicates':
-                    const exact = data.exact_duplicates?.length || 0;
-                    const near = data.near_duplicates?.length || 0;
-                    preview.textContent = `${exact} exact, ${near} near-duplicates`;
-                    break;
-                case 'spam':
-                    const spam = data.high_spam_posts?.length || 0;
-                    preview.textContent = `${spam} suspicious posts flagged`;
-                    break;
+            try {
+                const res = await fetch(`${API_BASE}/insights/same-operator-candidates`);
+                const candidates = await res.json();
+
+                candidatesContainer.innerHTML = (Array.isArray(candidates) ? candidates : []).slice(0, 10).map(c => `
+                    <div class="result-item">
+                        <div class="result-header">
+                            <span class="card-badge ${c.overall_score > 0.8 ? 'red' : c.overall_score > 0.6 ? 'orange' : 'blue'}">
+                                ${(c.overall_score * 100).toFixed(0)}%
+                            </span>
+                            <span class="result-author" onclick="loadAgentProfile('${escapeHtml(c.author1)}')">${escapeHtml(c.author1)}</span>
+                            <span style="color: var(--text-muted)">↔</span>
+                            <span class="result-author" onclick="loadAgentProfile('${escapeHtml(c.author2)}')">${escapeHtml(c.author2)}</span>
+                        </div>
+                        <div class="result-meta">
+                            Template: ${((c.template_similarity || 0) * 100).toFixed(0)}% |
+                            Activation: ${((c.activation_overlap || 0) * 100).toFixed(0)}%
+                        </div>
+                    </div>
+                `).join('') || '<div class="empty-state"><p>No candidates found</p></div>';
+
+            } catch (e) {
+                candidatesContainer.innerHTML = '<div class="empty-state"><p>Failed to load</p></div>';
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/insights/operator-clusters`);
+                const clusters = await res.json();
+
+                clustersContainer.innerHTML = (Array.isArray(clusters) ? clusters : []).map(c => `
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">Cluster</span>
+                            <span class="card-badge purple">${c.members?.length || 0} agents</span>
+                        </div>
+                        <div class="card-preview">
+                            ${(c.members || []).slice(0, 5).map(m => `<span class="result-author" onclick="loadAgentProfile('${escapeHtml(m)}')">${escapeHtml(m)}</span>`).join(', ')}
+                        </div>
+                    </div>
+                `).join('') || '';
+            } catch (e) {}
+        }
+
+        async function compareOperators() {
+            const a1 = document.getElementById('compare-agent1').value.trim();
+            const a2 = document.getElementById('compare-agent2').value.trim();
+            if (!a1 || !a2) {
+                showToast('Enter both agent names', 'info');
+                return;
+            }
+
+            const container = document.getElementById('compare-result');
+            container.innerHTML = '<div class="skeleton skeleton-text"></div>';
+
+            try {
+                const res = await fetch(`${API_BASE}/compare-operators`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ author1: a1, author2: a2 })
+                });
+                const data = await res.json();
+
+                const score = data.overall_score || 0;
+                const color = score > 0.8 ? 'var(--red)' : score > 0.6 ? 'var(--orange)' : 'var(--green)';
+
+                container.innerHTML = `
+                    <div class="detail-panel" style="margin-top: 16px;">
+                        <div style="text-align: center; margin-bottom: 16px;">
+                            <div style="font-size: 48px; font-weight: 600; color: ${color};">${(score * 100).toFixed(0)}%</div>
+                            <div style="color: var(--text-secondary);">Same Operator Likelihood</div>
+                        </div>
+                        <div class="agent-stats">
+                            <div class="agent-stat">
+                                <div class="value">${((data.template_similarity || 0) * 100).toFixed(0)}%</div>
+                                <div class="label">Template</div>
+                            </div>
+                            <div class="agent-stat">
+                                <div class="value">${((data.activation_overlap || 0) * 100).toFixed(0)}%</div>
+                                <div class="label">Activation</div>
+                            </div>
+                            <div class="agent-stat">
+                                <div class="value">${((data.topic_alignment || 0) * 100).toFixed(0)}%</div>
+                                <div class="label">Topics</div>
+                            </div>
+                            <div class="agent-stat">
+                                <div class="value">${data.never_concurrent ? 'Yes' : 'No'}</div>
+                                <div class="label">Never Concurrent</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } catch (e) {
+                container.innerHTML = `<div class="empty-state"><p>Comparison failed: ${e.message}</p></div>`;
             }
         }
 
-        function displayInsightDetail(type, data) {
-            const container = document.getElementById('insight-detail');
-            let html = `<h3>${getInsightTitle(type)}</h3>`;
+        // Social Dynamics
+        async function loadDynamicsData(tab) {
+            const container = document.getElementById('dynamics-content');
+            container.innerHTML = '<div class="skeleton skeleton-text"></div>'.repeat(5);
 
-            switch(type) {
-                case 'trending':
-                    html += '<div class="results">';
-                    data.rising_agents?.forEach(agent => {
-                        html += `
-                            <div class="result-item" onclick="loadAgentProfile('${escapeHtml(agent.author)}')">
-                                <div class="result-title">${escapeHtml(agent.author)}</div>
-                                <div class="result-meta">+${agent.growth_percent}% growth · ${agent.recent_posts} recent posts · ${agent.total_recent_upvotes} upvotes</div>
-                            </div>
-                        `;
-                    });
-                    html += '</div>';
-                    break;
+            document.querySelectorAll('#page-dynamics .tab').forEach(t => {
+                t.classList.toggle('active', t.textContent.toLowerCase().includes(tab));
+            });
 
-                case 'discussions':
-                    html += '<div class="results">';
-                    data.hot_discussions?.forEach(d => {
-                        html += `
-                            <div class="result-item">
-                                <div class="result-title">${escapeHtml(d.title)}</div>
-                                <div class="result-author" onclick="loadAgentProfile('${escapeHtml(d.author)}')">${escapeHtml(d.author)}</div>
-                                <div class="result-meta">${d.comment_count} comments · ${d.upvotes} upvotes · ${d.participant_count} participants</div>
-                            </div>
-                        `;
-                    });
-                    html += '</div>';
-                    break;
-
-                case 'network':
-                    html += '<div class="results">';
-                    data.network_connectors?.forEach(n => {
-                        html += `
-                            <div class="result-item" onclick="loadAgentProfile('${escapeHtml(n.agent)}')">
-                                <div class="result-title">${escapeHtml(n.agent)}</div>
-                                <div class="result-meta">${n.total_connections} connections · Reaches ${n.reaches} · Engaged by ${n.engaged_by}</div>
-                            </div>
-                        `;
-                    });
-                    html += '</div>';
-                    break;
-
-                case 'anomalies':
-                    html += '<h4>Viral Posts</h4><div class="results">';
-                    data.viral_posts?.forEach(p => {
-                        html += `
-                            <div class="result-item">
-                                <div class="result-title">${escapeHtml(p.title)}</div>
-                                <div class="result-author" onclick="loadAgentProfile('${escapeHtml(p.author)}')">${escapeHtml(p.author)}</div>
-                                <div class="result-meta">${p.upvotes} upvotes · Velocity: ${p.velocity}/hr</div>
-                            </div>
-                        `;
-                    });
-                    html += '</div>';
-                    if (data.high_activity_agents?.length > 0) {
-                        html += '<h4 style="margin-top: 20px;">High Activity Agents</h4><div class="results">';
-                        data.high_activity_agents?.forEach(a => {
-                            html += `
-                                <div class="result-item" onclick="loadAgentProfile('${escapeHtml(a.author)}')">
-                                    <div class="result-title">${escapeHtml(a.author)}</div>
-                                    <div class="result-meta">${a.posts_6h} posts in 6 hours</div>
-                                </div>
-                            `;
-                        });
-                        html += '</div>';
-                    }
-                    break;
-
-                case 'opportunities':
-                    html += '<div class="results">';
-                    data.content_opportunities?.forEach(o => {
-                        html += `
-                            <div class="result-item">
-                                <div class="result-title">${o.topic}</div>
-                                <div class="result-meta">${o.post_count} posts · ${o.avg_upvotes} avg upvotes · ${o.avg_comments} avg comments</div>
-                                <div style="color: #00d4aa; margin-top: 5px;">Opportunity Score: ${o.opportunity_score}</div>
-                            </div>
-                        `;
-                    });
-                    html += '</div>';
-                    break;
-
-                case 'predictions':
-                    html += '<div class="results">';
-                    data.predicted_trends?.forEach(p => {
-                        html += `
-                            <div class="result-item">
-                                <div class="result-title">${p.topic}</div>
-                                <div class="result-meta">Viral Potential: ${p.viral_potential} · ${p.recent_posts} recent posts · Max: ${p.max_upvotes} upvotes</div>
-                            </div>
-                        `;
-                    });
-                    html += '</div>';
-                    break;
-
-                case 'influence':
-                    html += '<h4>Top Influencers</h4><div class="results">';
-                    data.top_influencers?.forEach(i => {
-                        html += `
-                            <div class="result-item" onclick="loadAgentProfile('${escapeHtml(i.author)}')">
-                                <div class="result-title">${escapeHtml(i.author)}</div>
-                                <div class="result-meta">
-                                    Score: ${i.influence_score} · ${i.total_replies} replies from ${i.unique_repliers} people · ${i.avg_upvotes} avg upvotes
-                                </div>
-                            </div>
-                        `;
-                    });
-                    html += '</div>';
-
-                    if (data.specialists?.length > 0) {
-                        html += '<h4 style="margin-top: 20px;">Topic Specialists</h4><div class="results">';
-                        data.specialists.forEach(s => {
-                            html += `
-                                <div class="result-item" onclick="loadAgentProfile('${escapeHtml(s.author)}')">
-                                    <div class="result-title">${escapeHtml(s.author)}</div>
-                                    <div class="result-meta">Specialty: ${escapeHtml(s.specialty)} (${s.posts} posts)</div>
-                                </div>
-                            `;
-                        });
-                        html += '</div>';
-                    }
-                    break;
-
-                case 'duplicates':
-                    if (data.exact_duplicates?.length > 0) {
-                        html += '<h4>Exact Duplicates</h4><div class="results">';
-                        data.exact_duplicates.forEach(d => {
-                            html += `
-                                <div class="result-item">
-                                    <div class="result-header">
-                                        <span class="result-type duplicate">DUPLICATE</span>
-                                        <span>${d.duplicate_count} copies</span>
-                                    </div>
-                                    <div class="result-title">${escapeHtml(d.title)}</div>
-                                    <div class="result-author" onclick="loadAgentProfile('${escapeHtml(d.author)}')">${escapeHtml(d.author)}</div>
-                                </div>
-                            `;
-                        });
-                        html += '</div>';
-                    }
-
-                    if (data.near_duplicates?.length > 0) {
-                        html += '<h4 style="margin-top: 20px;">Near-Duplicates (>95% similar)</h4><div class="results">';
-                        data.near_duplicates.forEach(d => {
-                            html += `
-                                <div class="result-item">
-                                    <div class="result-header">
-                                        <span class="result-type">${(d.similarity * 100).toFixed(1)}% similar</span>
-                                    </div>
-                                    <div class="result-title">${escapeHtml(d.title)}</div>
-                                    <div style="color: #8b949e; font-size: 13px; margin-top: 5px;">
-                                        Similar to: ${escapeHtml(d.similar_title)}
-                                    </div>
-                                </div>
-                            `;
-                        });
-                        html += '</div>';
-                    }
-                    break;
-
-                case 'spam':
-                    html += '<div class="results">';
-                    data.high_spam_posts?.forEach(p => {
-                        html += `
-                            <div class="result-item">
-                                <div class="result-header">
-                                    <span class="result-type spam">SPAM ${p.spam_score}</span>
-                                    <span style="color: #8b949e; font-size: 12px;">${p.reasons.join(', ')}</span>
-                                </div>
-                                <div class="result-title">${escapeHtml(p.title)}</div>
-                                <div class="result-author" onclick="loadAgentProfile('${escapeHtml(p.author)}')">${escapeHtml(p.author)}</div>
-                            </div>
-                        `;
-                    });
-                    html += '</div>';
-
-                    if (data.velocity_spammers?.length > 0) {
-                        html += '<h4 style="margin-top: 20px;">High-Velocity Posters</h4><div class="results">';
-                        data.velocity_spammers.forEach(v => {
-                            html += `
-                                <div class="result-item" onclick="loadAgentProfile('${escapeHtml(v.author)}')">
-                                    <div class="result-title">${escapeHtml(v.author)}</div>
-                                    <div class="result-meta">${v.posts_per_hour} posts/hour</div>
-                                </div>
-                            `;
-                        });
-                        html += '</div>';
-                    }
-                    break;
-            }
-
-            container.innerHTML = html;
-        }
-
-        function getInsightTitle(type) {
-            const titles = {
-                'trending': 'Trending Agents',
-                'discussions': 'Hot Discussions',
-                'network': 'Network Connectors',
-                'anomalies': 'Anomalies & Viral Content',
-                'opportunities': 'Content Opportunities',
-                'predictions': 'Predicted Trends',
-                'influence': 'Author Influence',
-                'duplicates': 'Duplicate Content',
-                'spam': 'Spam Detection'
+            const endpoints = {
+                viral: '/insights/viral-content',
+                influencers: '/insights/top-influencers',
+                adoption: '/insights/tool-adoption'
             };
-            return titles[type] || type;
+
+            try {
+                const res = await fetch(`${API_BASE}${endpoints[tab]}`);
+                const data = await res.json();
+
+                if (tab === 'viral') {
+                    const items = data.viral_content || data || [];
+                    container.innerHTML = `<div class="results-list">${items.map(v => `
+                        <div class="result-item">
+                            <div class="result-header">
+                                <span class="card-badge orange">${(v.spread_velocity || 0).toFixed(1)}/day</span>
+                                <span>Cascade: ${v.cascade_size || 0}</span>
+                            </div>
+                            <div class="result-content">${escapeHtml((v.title || v.content || '').substring(0, 150))}</div>
+                            <div class="result-meta">
+                                <span class="result-author" onclick="loadAgentProfile('${escapeHtml(v.author || v.original_author)}')">${escapeHtml(v.author || v.original_author || 'Unknown')}</span>
+                            </div>
+                        </div>
+                    `).join('') || '<div class="empty-state"><p>No viral content</p></div>'}</div>`;
+                } else if (tab === 'influencers') {
+                    const items = data.influencers || data || [];
+                    container.innerHTML = `<div class="results-list">${items.map((inf, i) => `
+                        <div class="result-item" onclick="loadAgentProfile('${escapeHtml(inf.author || inf.author_name)}')">
+                            <div class="result-header">
+                                <span class="card-badge ${i < 3 ? 'red' : 'blue'}">#${i + 1}</span>
+                                <span class="result-title">${escapeHtml(inf.author || inf.author_name)}</span>
+                            </div>
+                            <div class="result-meta">
+                                <span>Influence: ${((inf.influence_score || 0) * 100).toFixed(0)}%</span>
+                                <span>Reach: ${inf.reach || inf.influenced_count || 0}</span>
+                            </div>
+                        </div>
+                    `).join('')}</div>`;
+                } else if (tab === 'adoption') {
+                    const topics = data.topics || data || {};
+                    container.innerHTML = `<div class="card-grid">${Object.entries(topics).map(([tool, curve]) => `
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title">${escapeHtml(tool)}</span>
+                                <span class="card-badge ${curve.phase === 'growth' ? 'green' : 'blue'}">${curve.phase || 'unknown'}</span>
+                            </div>
+                            <div class="card-preview">
+                                <div class="stat"><span>Adopters</span><span class="stat-value">${curve.current_adopters || 0}</span></div>
+                                <div class="stat"><span>Growth</span><span class="stat-value">${(curve.growth_rate || 0).toFixed(2)}/day</span></div>
+                            </div>
+                        </div>
+                    `).join('')}</div>`;
+                }
+            } catch (e) {
+                container.innerHTML = `<div class="empty-state"><h3>Failed to load</h3></div>`;
+            }
         }
 
+        function showDynamicsTab(tab) {
+            loadDynamicsData(tab);
+        }
+
+        // Trending
+        async function loadTrendingPreviews() {
+            const previews = {
+                rising: '/insights/trending',
+                discussions: '/insights/discussions',
+                predictions: '/insights/predictions',
+                network: '/insights/network'
+            };
+
+            for (const [key, endpoint] of Object.entries(previews)) {
+                try {
+                    const res = await fetch(`${API_BASE}${endpoint}`);
+                    const data = await res.json();
+                    const el = document.getElementById(`preview-${key}`);
+                    if (el) {
+                        const items = data.rising_agents || data.hot_discussions || data.predicted_trends || data.network_connectors || [];
+                        el.innerHTML = items.slice(0, 2).map(i =>
+                            `<div style="font-size: 12px; margin-bottom: 4px;">${escapeHtml(i.author || i.title || i.topic || i.agent || '')}</div>`
+                        ).join('') || '<span style="color: var(--text-muted)">No data</span>';
+                    }
+                } catch (e) {}
+            }
+        }
+
+        async function loadTrendingDetail(type) {
+            const panel = document.getElementById('trending-detail');
+            panel.style.display = 'block';
+            panel.innerHTML = '<div class="skeleton skeleton-text"></div>'.repeat(5);
+
+            const endpoints = {
+                rising: '/insights/trending',
+                discussions: '/insights/discussions',
+                predictions: '/insights/predictions',
+                network: '/insights/network'
+            };
+
+            try {
+                const res = await fetch(`${API_BASE}${endpoints[type]}`);
+                const data = await res.json();
+
+                let items = [];
+                if (type === 'rising') items = data.rising_agents || [];
+                else if (type === 'discussions') items = data.hot_discussions || [];
+                else if (type === 'predictions') items = data.predicted_trends || [];
+                else if (type === 'network') items = data.network_connectors || [];
+
+                panel.innerHTML = `
+                    <div class="detail-header">
+                        <button class="detail-back" onclick="document.getElementById('trending-detail').style.display='none'">← Back</button>
+                        <span class="detail-title">${type.charAt(0).toUpperCase() + type.slice(1)}</span>
+                    </div>
+                    <div class="results-list">
+                        ${items.map(i => `
+                            <div class="result-item">
+                                <div class="result-title">${escapeHtml(i.author || i.title || i.topic || i.agent || '')}</div>
+                                <div class="result-meta">
+                                    ${i.growth_percent ? `Growth: ${i.growth_percent}%` : ''}
+                                    ${i.participant_count ? `${i.participant_count} participants` : ''}
+                                    ${i.viral_potential ? `Viral: ${i.viral_potential}` : ''}
+                                    ${i.total_connections ? `${i.total_connections} connections` : ''}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } catch (e) {
+                panel.innerHTML = `<div class="empty-state"><h3>Failed to load</h3></div>`;
+            }
+        }
+
+        // Anomalies
+        async function loadAnomalyPreviews() {
+            // Similar pattern to trending
+        }
+
+        async function loadAnomalyDetail(type) {
+            const panel = document.getElementById('anomaly-detail');
+            panel.style.display = 'block';
+            panel.innerHTML = '<div class="skeleton skeleton-text"></div>'.repeat(5);
+
+            const endpoints = {
+                bursts: '/insights/bursts',
+                viral: '/insights/anomalies',
+                persona: '/insights/persona-shifts',
+                synchronized: '/insights/synchronized-activity'
+            };
+
+            try {
+                const res = await fetch(`${API_BASE}${endpoints[type]}`);
+                const data = await res.json();
+
+                panel.innerHTML = `
+                    <div class="detail-header">
+                        <button class="detail-back" onclick="document.getElementById('anomaly-detail').style.display='none'">← Back</button>
+                        <span class="detail-title">${type.charAt(0).toUpperCase() + type.slice(1)}</span>
+                    </div>
+                    <pre style="overflow-x: auto; font-size: 12px; color: var(--text-secondary);">${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (e) {
+                panel.innerHTML = `<div class="empty-state"><h3>Failed to load</h3></div>`;
+            }
+        }
+
+        // Content Quality
+        async function loadContentPreviews() {
+            try {
+                const res = await fetch(`${API_BASE}/insights/spam`);
+                const data = await res.json();
+                const count = data.high_spam_posts?.length || 0;
+                document.getElementById('spam-count').textContent = count;
+            } catch (e) {}
+        }
+
+        async function loadContentDetail(type) {
+            const panel = document.getElementById('content-detail');
+            panel.style.display = 'block';
+            panel.innerHTML = '<div class="skeleton skeleton-text"></div>'.repeat(5);
+
+            const endpoints = {
+                spam: '/insights/spam',
+                duplicates: '/insights/duplicates',
+                'copy-chains': '/insights/copy-chains',
+                amplification: '/insights/information-laundering'
+            };
+
+            try {
+                const res = await fetch(`${API_BASE}${endpoints[type]}`);
+                const data = await res.json();
+
+                panel.innerHTML = `
+                    <div class="detail-header">
+                        <button class="detail-back" onclick="document.getElementById('content-detail').style.display='none'">← Back</button>
+                        <span class="detail-title">${type.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}</span>
+                    </div>
+                    <pre style="overflow-x: auto; font-size: 12px; color: var(--text-secondary);">${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (e) {
+                panel.innerHTML = `<div class="empty-state"><h3>Failed to load</h3></div>`;
+            }
+        }
+
+        // Status
         async function loadStatus() {
             const container = document.getElementById('status-content');
-            container.innerHTML = '<div class="loading">Loading status...</div>';
+            const scheduleContainer = document.getElementById('analysis-schedule');
 
             try {
                 const res = await fetch(`${API_BASE}/status`);
                 const data = await res.json();
 
-                let html = '<div class="insight-grid">';
-
-                // Database status
-                html += `
-                    <div class="insight-card">
-                        <h3>Database</h3>
-                        <div class="insight-preview">
-                            <div>Posts: ${data.database?.posts?.toLocaleString() || 0}</div>
-                            <div>Comments: ${data.database?.comments?.toLocaleString() || 0}</div>
-                            <div>Total: ${data.database?.total_content?.toLocaleString() || 0}</div>
+                container.innerHTML = `
+                    <div class="card">
+                        <div class="card-header"><span class="card-title">Database</span></div>
+                        <div class="card-preview">
+                            <div class="stat"><span>Posts</span><span class="stat-value">${formatNumber(data.database?.posts || 0)}</span></div>
+                            <div class="stat"><span>Comments</span><span class="stat-value">${formatNumber(data.database?.comments || 0)}</span></div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">Embeddings</span>
+                            <span class="card-badge ${data.embeddings?.coverage_percent >= 90 ? 'green' : data.embeddings?.coverage_percent >= 50 ? 'orange' : 'red'}">
+                                ${(data.embeddings?.coverage_percent || 0).toFixed(0)}%
+                            </span>
+                        </div>
+                        <div class="card-preview">
+                            <div class="stat"><span>Embedded</span><span class="stat-value">${formatNumber(data.embeddings?.embedded || 0)}</span></div>
+                            <div class="stat"><span>Missing</span><span class="stat-value">${formatNumber(data.embeddings?.missing || 0)}</span></div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">Sync Status</span>
+                            <span class="card-badge ${data.sync?.status === 'ok' ? 'green' : 'orange'}">${data.sync?.status || 'unknown'}</span>
+                        </div>
+                        <div class="card-preview">
+                            <div class="stat"><span>Last sync</span><span class="stat-value">${formatDate(data.sync?.last_sync)}</span></div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">Analysis</span>
+                            <span class="card-badge ${data.analysis?.running ? 'green' : 'blue'}">${data.analysis?.running ? 'Running' : 'Idle'}</span>
+                        </div>
+                        <div class="card-preview">
+                            <div class="stat"><span>Cached insights</span><span class="stat-value">${data.analysis?.cached_insights || 0}</span></div>
                         </div>
                     </div>
                 `;
 
-                // Embedding coverage
-                const coverage = data.embeddings?.coverage_percent || 0;
-                const coverageColor = coverage >= 90 ? '#00d4aa' : coverage >= 50 ? '#f0883e' : '#f85149';
-                html += `
-                    <div class="insight-card">
-                        <h3>Embeddings</h3>
-                        <div class="insight-preview">
-                            <div style="font-size: 24px; color: ${coverageColor};">${coverage.toFixed(1)}%</div>
-                            <div style="margin-top: 5px;">${data.embeddings?.embedded?.toLocaleString() || 0} / ${data.embeddings?.total_content?.toLocaleString() || 0}</div>
-                            <div style="color: #8b949e; font-size: 11px;">Missing: ${data.embeddings?.missing?.toLocaleString() || 0}</div>
+                if (data.analysis?.last_runs) {
+                    scheduleContainer.innerHTML = Object.entries(data.analysis.last_runs).map(([name, time]) => `
+                        <div class="result-item" style="display: inline-block; margin: 4px; padding: 8px 12px;">
+                            <strong>${name.replace(/_/g, ' ')}</strong><br>
+                            <span style="font-size: 11px; color: var(--text-muted);">${formatDate(time)}</span>
                         </div>
-                    </div>
-                `;
-
-                // Sync status
-                const lastSync = data.sync?.last_sync;
-                const syncStatus = data.sync?.status || 'unknown';
-                const syncColor = syncStatus === 'ok' ? '#00d4aa' : syncStatus === 'stale' ? '#f0883e' : '#8b949e';
-                html += `
-                    <div class="insight-card">
-                        <h3>Content Sync</h3>
-                        <div class="insight-preview">
-                            <div style="color: ${syncColor}; font-weight: bold;">${syncStatus.toUpperCase()}</div>
-                            ${lastSync ? `<div style="margin-top: 5px;">Last: ${formatDate(lastSync)}</div>` : '<div style="margin-top: 5px;">Never synced</div>'}
-                            ${data.sync?.new_posts_imported ? `<div style="color: #00d4aa;">+${data.sync.new_posts_imported} new</div>` : ''}
-                        </div>
-                    </div>
-                `;
-
-                // Content freshness
-                html += `
-                    <div class="insight-card">
-                        <h3>Content Freshness</h3>
-                        <div class="insight-preview">
-                            ${data.freshness?.newest_post ? `<div>Newest: ${formatDate(data.freshness.newest_post)}</div>` : ''}
-                            ${data.freshness?.oldest_post ? `<div>Oldest: ${formatDate(data.freshness.oldest_post)}</div>` : ''}
-                            ${data.freshness?.posts_last_24h !== undefined ? `<div style="color: #00d4aa;">${data.freshness.posts_last_24h} posts (24h)</div>` : ''}
-                        </div>
-                    </div>
-                `;
-
-                // Analysis status
-                html += `
-                    <div class="insight-card">
-                        <h3>Background Analysis</h3>
-                        <div class="insight-preview">
-                            <div style="color: ${data.analysis?.running ? '#00d4aa' : '#8b949e'};">
-                                ${data.analysis?.running ? 'RUNNING' : 'IDLE'}
-                            </div>
-                            <div style="margin-top: 5px;">Cached: ${data.analysis?.cached_insights || 0} insights</div>
-                        </div>
-                    </div>
-                `;
-
-                html += '</div>';
-
-                // Last analysis times
-                if (data.analysis?.last_runs && Object.keys(data.analysis.last_runs).length > 0) {
-                    html += `
-                        <div style="margin-top: 25px;">
-                            <h3 style="color: #e01b24; margin-bottom: 15px;">Analysis Schedule</h3>
-                            <div class="results">
-                    `;
-
-                    for (const [analysis, time] of Object.entries(data.analysis.last_runs)) {
-                        const displayName = analysis.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-                        html += `
-                            <div class="result-item" style="display: inline-block; margin-right: 10px; margin-bottom: 10px; padding: 10px 15px;">
-                                <strong>${displayName}</strong><br>
-                                <span style="color: #8b949e; font-size: 12px;">${formatDate(time)}</span>
-                            </div>
-                        `;
-                    }
-
-                    html += '</div></div>';
+                    `).join('');
                 }
-
-                // Moltbook API status (if available)
-                if (data.moltbook_api) {
-                    const apiColor = data.moltbook_api.status === 'ok' ? '#00d4aa' : '#f85149';
-                    html += `
-                        <div style="margin-top: 25px;">
-                            <h3 style="color: #e01b24; margin-bottom: 15px;">Moltbook API</h3>
-                            <div class="insight-card" style="display: inline-block;">
-                                <div class="insight-preview">
-                                    <div style="color: ${apiColor}; font-weight: bold;">${data.moltbook_api.status?.toUpperCase() || 'UNKNOWN'}</div>
-                                    ${data.moltbook_api.last_check ? `<div>Checked: ${formatDate(data.moltbook_api.last_check)}</div>` : ''}
-                                    ${data.moltbook_api.error ? `<div style="color: #f85149; font-size: 12px;">${data.moltbook_api.error}</div>` : ''}
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                }
-
-                container.innerHTML = html;
-
             } catch (e) {
-                container.innerHTML = `<div class="error">Error loading status: ${e.message}</div>`;
+                container.innerHTML = `<div class="empty-state"><h3>Failed to load status</h3></div>`;
             }
         }
 
-        async function loadAllInsightPreviews() {
-            const types = ['trending', 'discussions', 'network', 'anomalies', 'opportunities', 'predictions', 'influence', 'duplicates', 'spam'];
-            for (const type of types) {
-                try {
-                    const endpoint = type === 'spam' ? 'spam' :
-                                    type === 'duplicates' ? 'duplicates' :
-                                    type === 'influence' ? 'influence' : type;
-                    const res = await fetch(`${API_BASE}/insights/${endpoint}`);
-                    if (res.ok) {
-                        const data = await res.json();
-                        updateInsightPreview(type, data);
-                    }
-                } catch (e) {
-                    console.log(`Preview for ${type} not ready yet`);
-                }
+        // Command Palette
+        function openCommandPalette() {
+            document.getElementById('cmd-overlay').classList.add('open');
+            document.getElementById('cmd-input').value = '';
+            document.getElementById('cmd-input').focus();
+            cmdSelectedIndex = 0;
+            updateCmdSelection();
+        }
+
+        function closeCommandPalette() {
+            document.getElementById('cmd-overlay').classList.remove('open');
+        }
+
+        function filterCommands(query) {
+            const items = document.querySelectorAll('.cmd-item');
+            const q = query.toLowerCase();
+            items.forEach(item => {
+                const label = item.querySelector('.label')?.textContent?.toLowerCase() || '';
+                item.style.display = label.includes(q) ? 'flex' : 'none';
+            });
+            cmdSelectedIndex = 0;
+            updateCmdSelection();
+        }
+
+        function handleCmdKeydown(e) {
+            const items = [...document.querySelectorAll('.cmd-item')].filter(i => i.style.display !== 'none');
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                cmdSelectedIndex = Math.min(cmdSelectedIndex + 1, items.length - 1);
+                updateCmdSelection();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                cmdSelectedIndex = Math.max(cmdSelectedIndex - 1, 0);
+                updateCmdSelection();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                const selected = items[cmdSelectedIndex];
+                if (selected) executeCommand(selected.dataset.action);
+            } else if (e.key === 'Escape') {
+                closeCommandPalette();
+            }
+        }
+
+        function updateCmdSelection() {
+            const items = [...document.querySelectorAll('.cmd-item')].filter(i => i.style.display !== 'none');
+            items.forEach((item, i) => {
+                item.classList.toggle('selected', i === cmdSelectedIndex);
+            });
+        }
+
+        function executeCommand(action) {
+            closeCommandPalette();
+            if (['search', 'agents', 'network', 'coordination', 'operators', 'dynamics', 'status', 'trending', 'anomalies', 'content'].includes(action)) {
+                navigateTo(action);
+            } else if (action === 'refresh') {
+                loadStats();
+                showToast('Refreshing data...', 'info');
+            } else if (action === 'export') {
+                exportSearch();
+            }
+        }
+
+        // Helpers
+        function formatNumber(n) {
+            if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+            if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+            return n.toString();
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return 'Never';
+            try {
+                const d = new Date(dateStr);
+                const now = new Date();
+                const diff = (now - d) / 1000;
+                if (diff < 60) return 'Just now';
+                if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+                if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+                if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
+                return d.toLocaleDateString();
+            } catch {
+                return dateStr;
             }
         }
 
@@ -1515,422 +2286,38 @@
             return div.innerHTML;
         }
 
-        function formatDate(dateStr) {
-            if (!dateStr) return '';
-            try {
-                const date = new Date(dateStr);
-                return date.toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'});
-            } catch {
-                return dateStr;
-            }
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
         }
 
-        // Handle Enter key in inputs
-        document.getElementById('search-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') doSearch();
-        });
-        document.getElementById('trends-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') doTrends();
-        });
-
-        // ========================================
-        // Coordination Detection Functions
-        // ========================================
-
-        async function loadCoordinationSummary() {
-            const container = document.getElementById('coordination-alert-summary');
-
-            try {
-                const res = await fetch(`${API_BASE}/insights/coordination/summary`);
-                if (!res.ok) {
-                    container.innerHTML = '<div style="color: #8b949e;">Coordination analysis not yet available</div>';
-                    return;
-                }
-
-                const data = await res.json();
-
-                container.innerHTML = `
-                    <div class="stats" style="margin-bottom: 0;">
-                        <div class="stat-card">
-                            <div class="stat-number" style="color: #f85149;">${data.critical_count || 0}</div>
-                            <div class="stat-label">Critical</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-number" style="color: #f0883e;">${data.high_count || 0}</div>
-                            <div class="stat-label">High</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-number">${data.total_active || 0}</div>
-                            <div class="stat-label">Total Active</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-number">${data.new_24h || 0}</div>
-                            <div class="stat-label">New (24h)</div>
-                        </div>
-                    </div>
-                `;
-            } catch (e) {
-                container.innerHTML = '<div style="color: #8b949e;">Coordination module loading...</div>';
-            }
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
         }
 
-        async function loadCoordinationInsight(type) {
-            const detailContainer = document.getElementById('coordination-detail');
-            detailContainer.innerHTML = '<div class="loading">Loading...</div>';
-
-            try {
-                let endpoint = '';
-                switch(type) {
-                    case 'alerts': endpoint = '/insights/coordination'; break;
-                    case 'sockpuppets': endpoint = '/insights/sockpuppets'; break;
-                    case 'synchronized': endpoint = '/insights/synchronized-posting'; break;
-                    case 'clusters': endpoint = '/insights/clusters'; break;
-                    case 'bursts': endpoint = '/insights/bursts'; break;
-                    case 'narratives': endpoint = '/insights/coordinated-pushes'; break;
-                    case 'communities': endpoint = '/insights/communities'; break;
-                    case 'bridges': endpoint = '/insights/bridges'; break;
-                    case 'high-risk': endpoint = '/insights/high-risk-agents'; break;
-                    default: throw new Error('Unknown type');
-                }
-
-                const res = await fetch(`${API_BASE}${endpoint}`);
-                if (!res.ok) throw new Error('Not available');
-
-                const data = await res.json();
-                displayCoordinationDetail(type, data);
-
-                // Show sockpuppet network if applicable
-                if (type === 'sockpuppets') {
-                    loadSockpuppetNetwork();
-                } else {
-                    document.getElementById('sockpuppet-network-container').style.display = 'none';
-                }
-
-            } catch (e) {
-                detailContainer.innerHTML = `<div class="error">Error: ${e.message}</div>`;
-            }
+        function closeSidebar() {
+            document.getElementById('sidebar').classList.remove('open');
         }
 
-        function displayCoordinationDetail(type, data) {
-            const container = document.getElementById('coordination-detail');
-            let html = '';
-
-            switch(type) {
-                case 'alerts':
-                    html = '<h3>Active Coordination Alerts</h3><div class="results">';
-                    (Array.isArray(data) ? data : []).forEach(alert => {
-                        const severityColor = alert.severity === 'critical' ? '#f85149' :
-                                             alert.severity === 'high' ? '#f0883e' :
-                                             alert.severity === 'medium' ? '#d29922' : '#8b949e';
-                        html += `
-                            <div class="result-item">
-                                <div class="result-header">
-                                    <span class="result-type" style="background: ${severityColor};">${alert.severity?.toUpperCase()}</span>
-                                    <span>${alert.type}</span>
-                                    <span style="color: #8b949e;">${(alert.confidence * 100).toFixed(0)}% conf</span>
-                                </div>
-                                <div style="margin-top: 8px; color: #8b949e; font-size: 13px;">
-                                    Authors: ${alert.authors?.slice(0, 5).map(a => `<span class="result-author" onclick="loadAgentProfile('${escapeHtml(a)}')">${escapeHtml(a)}</span>`).join(', ')}
-                                    ${alert.authors?.length > 5 ? ` +${alert.authors.length - 5} more` : ''}
-                                </div>
-                                <div class="result-meta">${formatDate(alert.detected_at)}</div>
-                            </div>
-                        `;
-                    });
-                    html += '</div>';
-                    break;
-
-                case 'sockpuppets':
-                    html = '<h3>Sockpuppet Candidates</h3><div class="results">';
-                    (data.candidates || []).forEach(c => {
-                        html += `
-                            <div class="result-item">
-                                <div class="result-header">
-                                    <span style="color: #f85149; font-weight: bold;">${(c.confidence * 100).toFixed(1)}%</span>
-                                </div>
-                                <div class="result-title">
-                                    <span class="result-author" onclick="loadAgentProfile('${escapeHtml(c.author1)}')">${escapeHtml(c.author1)}</span>
-                                    <span style="color: #8b949e; margin: 0 10px;">&harr;</span>
-                                    <span class="result-author" onclick="loadAgentProfile('${escapeHtml(c.author2)}')">${escapeHtml(c.author2)}</span>
-                                </div>
-                                <div class="result-meta">
-                                    Temporal: ${(c.evidence?.temporal_similarity * 100 || 0).toFixed(1)}% |
-                                    Vocabulary: ${(c.evidence?.vocabulary_similarity * 100 || 0).toFixed(1)}% |
-                                    No interaction: ${c.evidence?.no_interaction ? 'Yes' : 'No'}
-                                </div>
-                            </div>
-                        `;
-                    });
-                    html += '</div>';
-                    break;
-
-                case 'synchronized':
-                    html = '<h3>Synchronized Posting Groups</h3><div class="results">';
-                    (data.groups || []).forEach(g => {
-                        html += `
-                            <div class="result-item">
-                                <div class="result-header">
-                                    <span class="result-type" style="background: #a371f7;">${g.group_size} authors</span>
-                                    <span style="color: #00d4aa;">Score: ${g.coordination_score}</span>
-                                </div>
-                                <div style="margin-top: 8px;">
-                                    ${g.authors.slice(0, 5).map(a => `<span class="result-author" onclick="loadAgentProfile('${escapeHtml(a)}')">${escapeHtml(a)}</span>`).join(', ')}
-                                </div>
-                                <div class="result-meta">
-                                    Similarity: ${(g.avg_similarity * 100).toFixed(1)}% |
-                                    Time spread: ${g.time_spread_minutes.toFixed(0)} min
-                                </div>
-                            </div>
-                        `;
-                    });
-                    html += '</div>';
-                    break;
-
-                case 'clusters':
-                    html = '<h3>Coordination Clusters</h3><div class="results">';
-                    (data.clusters || []).forEach(c => {
-                        if (c.error) return;
-                        html += `
-                            <div class="result-item">
-                                <div class="result-header">
-                                    <span class="result-type">${c.size} members</span>
-                                    <span style="color: #00d4aa;">Score: ${c.coordination_score}</span>
-                                </div>
-                                <div style="margin-top: 8px;">
-                                    ${c.members.slice(0, 8).map(a => `<span class="result-author" onclick="loadAgentProfile('${escapeHtml(a)}')">${escapeHtml(a)}</span>`).join(', ')}
-                                    ${c.members.length > 8 ? ` +${c.members.length - 8} more` : ''}
-                                </div>
-                                <div class="result-meta">Cohesion: ${c.cohesion}</div>
-                            </div>
-                        `;
-                    });
-                    html += '</div>';
-                    break;
-
-                case 'bursts':
-                    html = '<h3>Activity Bursts</h3><div class="results">';
-                    (Array.isArray(data) ? data : []).forEach(b => {
-                        html += `
-                            <div class="result-item">
-                                <div class="result-header">
-                                    <span class="result-type" style="background: ${b.z_score > 5 ? '#f85149' : '#f0883e'};">z=${b.z_score}</span>
-                                    <span>${b.peak_activity} posts/hour</span>
-                                </div>
-                                <div style="margin-top: 8px;">Peak: ${formatDate(b.peak_hour)}</div>
-                                <div class="result-meta">
-                                    Duration: ${b.duration_hours}h |
-                                    Authors: ${b.author_count} |
-                                    Top: ${b.top_authors?.slice(0, 3).map(a => a.author).join(', ')}
-                                </div>
-                            </div>
-                        `;
-                    });
-                    html += '</div>';
-                    break;
-
-                case 'narratives':
-                    html = '<h3>Coordinated Narrative Pushes</h3><div class="results">';
-                    (data.pushes || []).forEach(p => {
-                        html += `
-                            <div class="result-item">
-                                <div class="result-header">
-                                    <span class="result-type" style="background: ${p.coordination_score > 8 ? '#f85149' : '#f0883e'};">Score: ${p.coordination_score}</span>
-                                    <span>${p.author_count} authors</span>
-                                </div>
-                                <div style="margin-top: 8px;">
-                                    ${p.authors.slice(0, 5).map(a => `<span class="result-author" onclick="loadAgentProfile('${escapeHtml(a)}')">${escapeHtml(a)}</span>`).join(', ')}
-                                </div>
-                                <div class="result-meta">
-                                    Time spread: ${p.time_spread_hours}h
-                                    ${p.fingerprint_similarity ? ` | Fingerprint sim: ${(p.fingerprint_similarity * 100).toFixed(1)}%` : ''}
-                                </div>
-                            </div>
-                        `;
-                    });
-                    html += '</div>';
-                    break;
-
-                case 'communities':
-                    html = '<h3>Network Communities</h3>';
-                    if (data.error) {
-                        html += `<div class="error">${data.error}</div>`;
-                    } else {
-                        html += `<p style="color: #8b949e;">Total: ${data.total_communities} communities${data.modularity ? `, Modularity: ${data.modularity.toFixed(3)}` : ''}</p><div class="results">`;
-                        (data.communities || []).forEach(c => {
-                            html += `
-                                <div class="result-item">
-                                    <div class="result-header">
-                                        <span class="result-type">Community ${c.community_id}</span>
-                                        <span>${c.size} members</span>
-                                    </div>
-                                    <div style="margin-top: 8px;">
-                                        ${c.members.slice(0, 10).map(a => `<span class="result-author" onclick="loadAgentProfile('${escapeHtml(a)}')">${escapeHtml(a)}</span>`).join(', ')}
-                                        ${c.members.length > 10 ? ` +${c.members.length - 10} more` : ''}
-                                    </div>
-                                </div>
-                            `;
-                        });
-                        html += '</div>';
-                    }
-                    break;
-
-                case 'bridges':
-                    html = '<h3>Bridge Agents</h3><p style="color: #8b949e; margin-bottom: 15px;">Agents connecting different communities</p><div class="results">';
-                    (Array.isArray(data) ? data : []).forEach(b => {
-                        html += `
-                            <div class="result-item" onclick="loadAgentProfile('${escapeHtml(b.author)}')">
-                                <div class="result-header">
-                                    <span class="result-type">Bridge Score: ${b.bridge_score}</span>
-                                </div>
-                                <div class="result-title">${escapeHtml(b.author)}</div>
-                                <div class="result-meta">
-                                    Cross-community: ${b.cross_community_connections} |
-                                    Same community: ${b.same_community_connections} |
-                                    Betweenness: ${b.betweenness}
-                                </div>
-                            </div>
-                        `;
-                    });
-                    html += '</div>';
-                    break;
-
-                case 'high-risk':
-                    html = '<h3>High-Risk Agents</h3><div class="results">';
-                    (Array.isArray(data) ? data : []).forEach(a => {
-                        const riskColor = a.risk_level === 'critical' ? '#f85149' :
-                                         a.risk_level === 'high' ? '#f0883e' :
-                                         a.risk_level === 'medium' ? '#d29922' : '#8b949e';
-                        html += `
-                            <div class="result-item" onclick="loadAgentProfile('${escapeHtml(a.author)}')">
-                                <div class="result-header">
-                                    <span class="result-type" style="background: ${riskColor};">${a.risk_level?.toUpperCase()}</span>
-                                    <span style="font-weight: bold; color: ${riskColor};">${a.risk_score}/100</span>
-                                </div>
-                                <div class="result-title">${escapeHtml(a.author)}</div>
-                                <div class="result-meta">
-                                    Active alerts: ${a.alert_count} |
-                                    Types: ${a.alert_types?.join(', ') || 'none'}
-                                </div>
-                            </div>
-                        `;
-                    });
-                    html += '</div>';
-                    break;
-
-                default:
-                    html = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
-            }
-
-            container.innerHTML = html;
+        function closeAllPanels() {
+            document.querySelectorAll('.detail-panel').forEach(p => p.style.display = 'none');
         }
 
-        async function loadSockpuppetNetwork() {
-            const container = document.getElementById('sockpuppet-network-container');
-            const graphDiv = document.getElementById('sockpuppet-graph');
-            container.style.display = 'block';
-
-            try {
-                const res = await fetch(`${API_BASE}/insights/sockpuppet-network`);
-                if (!res.ok) throw new Error('Network data not available');
-
-                const data = await res.json();
-
-                if (!data.nodes || data.nodes.length === 0) {
-                    graphDiv.innerHTML = '<div style="color: #8b949e; text-align: center; padding: 50px;">No sockpuppet connections found</div>';
-                    return;
-                }
-
-                // Create vis.js network
-                const nodes = new vis.DataSet(data.nodes.map(n => ({
-                    id: n.id,
-                    label: n.label,
-                    color: {
-                        background: '#f85149',
-                        border: '#ff7b7b',
-                        highlight: {background: '#00d4aa', border: '#00ffcc'}
-                    },
-                    font: {color: '#c9d1d9'}
-                })));
-
-                const edges = new vis.DataSet(data.edges.map(e => ({
-                    from: e.source,
-                    to: e.target,
-                    value: e.weight,
-                    title: `Confidence: ${(e.weight * 100).toFixed(1)}%`,
-                    color: {color: '#f85149', highlight: '#00d4aa'}
-                })));
-
-                const network = new vis.Network(graphDiv, {nodes, edges}, {
-                    nodes: {
-                        shape: 'dot',
-                        size: 20,
-                        font: {size: 12}
-                    },
-                    edges: {
-                        width: 2,
-                        scaling: {min: 1, max: 5}
-                    },
-                    physics: {
-                        stabilization: {iterations: 100},
-                        barnesHut: {gravitationalConstant: -2000}
-                    },
-                    interaction: {
-                        hover: true,
-                        tooltipDelay: 100
-                    }
-                });
-
-                network.on('click', function(params) {
-                    if (params.nodes.length > 0) {
-                        loadAgentProfile(params.nodes[0]);
-                    }
-                });
-
-            } catch (e) {
-                graphDiv.innerHTML = `<div class="error" style="padding: 50px; text-align: center;">Error: ${e.message}</div>`;
-            }
+        function viewContent(type, id) {
+            // Could open a modal or navigate to detail view
+            console.log('View', type, id);
         }
 
-        async function loadCoordinationPreviews() {
-            // Load previews for coordination cards
-            const previewConfigs = [
-                {id: 'coord-alerts-preview', endpoint: '/insights/coordination/summary',
-                 extract: d => `${d.total_active || 0} active (${d.critical_count || 0} critical)`},
-                {id: 'coord-sockpuppets-preview', endpoint: '/insights/sockpuppets',
-                 extract: d => `${d.candidates?.length || 0} candidates`},
-                {id: 'coord-synchronized-preview', endpoint: '/insights/synchronized-posting',
-                 extract: d => `${d.groups?.length || 0} groups`},
-                {id: 'coord-clusters-preview', endpoint: '/insights/clusters',
-                 extract: d => `${d.clusters?.length || 0} clusters`},
-                {id: 'coord-bursts-preview', endpoint: '/insights/bursts',
-                 extract: d => `${Array.isArray(d) ? d.length : 0} bursts detected`},
-                {id: 'coord-narratives-preview', endpoint: '/insights/coordinated-pushes',
-                 extract: d => `${d.pushes?.length || 0} coordinated pushes`},
-                {id: 'coord-communities-preview', endpoint: '/insights/communities',
-                 extract: d => d.error ? 'Loading...' : `${d.total_communities || 0} communities`},
-                {id: 'coord-bridges-preview', endpoint: '/insights/bridges',
-                 extract: d => `${Array.isArray(d) ? d.length : 0} bridge agents`},
-                {id: 'coord-risk-preview', endpoint: '/insights/high-risk-agents',
-                 extract: d => `${Array.isArray(d) ? d.length : 0} flagged agents`}
-            ];
-
-            for (const config of previewConfigs) {
-                try {
-                    const res = await fetch(`${API_BASE}${config.endpoint}`);
-                    if (res.ok) {
-                        const data = await res.json();
-                        document.getElementById(config.id).textContent = config.extract(data);
-                    }
-                } catch (e) {
-                    // Silent fail for previews
-                }
-            }
+        function showNetworkTab(tab) {
+            document.querySelectorAll('#page-network .tab').forEach(t => {
+                t.classList.toggle('active', t.textContent.toLowerCase().includes(tab));
+            });
+            // Could load different graph views
         }
-
-        // Load stats and insight previews on page load
-        loadStats();
-        setTimeout(loadAllInsightPreviews, 1000);
-        setTimeout(loadCoordinationPreviews, 1500);
     </script>
 </body>
 </html>

@@ -692,11 +692,292 @@ def run_all_narrative_analysis() -> Dict[str, Any]:
     return results
 
 
+def build_propagation_tree(narrative_id: str) -> Dict[str, Any]:
+    """
+    Build a propagation tree for a narrative showing how it spread.
+    Returns tree structure with originator and propagation paths.
+    """
+    conn = get_db()
+    cursor = conn.cursor()
+
+    # Get all posts in narrative with embeddings
+    cursor.execute("""
+        SELECT np.post_id, p.author_name, p.created_at, p.content, e.embedding, np.similarity
+        FROM narrative_posts np
+        JOIN posts p ON np.post_id = p.id
+        LEFT JOIN embeddings e ON p.id = e.content_id AND e.content_type = 'post'
+        WHERE np.narrative_id = ?
+        ORDER BY p.created_at
+    """, (narrative_id,))
+
+    posts = []
+    for row in cursor.fetchall():
+        embedding = np.frombuffer(row[4], dtype=np.float32) if row[4] else None
+        posts.append({
+            'post_id': row[0],
+            'author': row[1],
+            'timestamp': row[2],
+            'content': row[3][:200] if row[3] else '',
+            'embedding': embedding,
+            'similarity': row[5]
+        })
+
+    conn.close()
+
+    if not posts:
+        return {'error': 'narrative not found', 'narrative_id': narrative_id}
+
+    # Build tree structure
+    root = posts[0]
+    tree = {
+        'narrative_id': narrative_id,
+        'root': {
+            'post_id': root['post_id'],
+            'author': root['author'],
+            'timestamp': root['timestamp'],
+            'content': root['content'],
+            'role': 'originator'
+        },
+        'propagation': []
+    }
+
+    # For each subsequent post, find its most likely parent
+    for i, post in enumerate(posts[1:], 1):
+        if post['embedding'] is None:
+            parent_id = root['post_id']
+            parent_similarity = post['similarity']
+        else:
+            # Find most similar prior post
+            best_sim = 0
+            parent_id = root['post_id']
+
+            for prior in posts[:i]:
+                if prior['embedding'] is not None:
+                    sim = float(np.dot(post['embedding'], prior['embedding']) / (
+                        np.linalg.norm(post['embedding']) * np.linalg.norm(prior['embedding']) + 1e-8
+                    ))
+                    if sim > best_sim:
+                        best_sim = sim
+                        parent_id = prior['post_id']
+
+            parent_similarity = best_sim
+
+        # Determine role
+        if parent_similarity > 0.95:
+            role = 'amplifier'
+        elif parent_similarity > 0.8:
+            role = 'adaptor'
+        else:
+            role = 'mutator'
+
+        tree['propagation'].append({
+            'post_id': post['post_id'],
+            'author': post['author'],
+            'timestamp': post['timestamp'],
+            'parent_id': parent_id,
+            'similarity': round(parent_similarity, 3),
+            'role': role
+        })
+
+    # Summary stats
+    tree['stats'] = {
+        'total_posts': len(posts),
+        'unique_authors': len(set(p['author'] for p in posts)),
+        'amplifiers': sum(1 for p in tree['propagation'] if p['role'] == 'amplifier'),
+        'adaptors': sum(1 for p in tree['propagation'] if p['role'] == 'adaptor'),
+        'mutators': sum(1 for p in tree['propagation'] if p['role'] == 'mutator')
+    }
+
+    return tree
+
+
+def compute_originality_scores(narrative_id: str) -> Dict[str, float]:
+    """
+    Compute originality scores for each post in a narrative.
+    Returns dict of post_id -> originality_score (0=derivative, 1=novel)
+    """
+    conn = get_db()
+    cursor = conn.cursor()
+
+    # Get narrative posts with embeddings
+    cursor.execute("""
+        SELECT np.post_id, p.created_at, e.embedding
+        FROM narrative_posts np
+        JOIN posts p ON np.post_id = p.id
+        JOIN embeddings e ON p.id = e.content_id AND e.content_type = 'post'
+        WHERE np.narrative_id = ?
+        ORDER BY p.created_at
+    """, (narrative_id,))
+
+    posts = []
+    for row in cursor.fetchall():
+        if row[2]:
+            posts.append({
+                'post_id': row[0],
+                'timestamp': row[1],
+                'embedding': np.frombuffer(row[2], dtype=np.float32)
+            })
+
+    conn.close()
+
+    if len(posts) < 2:
+        return {posts[0]['post_id']: 1.0} if posts else {}
+
+    scores = {}
+
+    # First post is fully original (by definition)
+    scores[posts[0]['post_id']] = 1.0
+
+    # For each subsequent post, compare with all prior posts
+    for i, post in enumerate(posts[1:], 1):
+        prior_embeddings = np.array([p['embedding'] for p in posts[:i]])
+
+        similarities = np.dot(prior_embeddings, post['embedding']) / (
+            np.linalg.norm(prior_embeddings, axis=1) * np.linalg.norm(post['embedding']) + 1e-8
+        )
+
+        max_sim = float(np.max(similarities))
+        originality = 1.0 - max_sim
+
+        scores[post['post_id']] = round(originality, 3)
+
+    return scores
+
+
+def track_narrative_mutations(narrative_id: str) -> List[Dict[str, Any]]:
+    """
+    Track how a narrative mutates as it propagates.
+    Returns list of mutation events with before/after content.
+    """
+    conn = get_db()
+    cursor = conn.cursor()
+
+    # Get narrative posts ordered by time
+    cursor.execute("""
+        SELECT np.post_id, p.author_name, p.created_at, p.content, e.embedding
+        FROM narrative_posts np
+        JOIN posts p ON np.post_id = p.id
+        LEFT JOIN embeddings e ON p.id = e.content_id AND e.content_type = 'post'
+        WHERE np.narrative_id = ?
+        ORDER BY p.created_at
+    """, (narrative_id,))
+
+    posts = []
+    for row in cursor.fetchall():
+        posts.append({
+            'post_id': row[0],
+            'author': row[1],
+            'timestamp': row[2],
+            'content': row[3] or '',
+            'embedding': np.frombuffer(row[4], dtype=np.float32) if row[4] else None
+        })
+
+    conn.close()
+
+    if len(posts) < 2:
+        return []
+
+    mutations = []
+
+    for i in range(1, len(posts)):
+        prev = posts[i-1]
+        curr = posts[i]
+
+        # Skip if same author (not a mutation, just continuation)
+        if prev['author'] == curr['author']:
+            continue
+
+        # Compute similarity if embeddings available
+        if prev['embedding'] is not None and curr['embedding'] is not None:
+            similarity = float(np.dot(prev['embedding'], curr['embedding']) / (
+                np.linalg.norm(prev['embedding']) * np.linalg.norm(curr['embedding']) + 1e-8
+            ))
+        else:
+            similarity = None
+
+        # Detect changes in content
+        prev_words = set(prev['content'].lower().split())
+        curr_words = set(curr['content'].lower().split())
+
+        added = curr_words - prev_words
+        removed = prev_words - curr_words
+
+        # Significant mutation if >20% change
+        change_ratio = len(added | removed) / max(len(prev_words | curr_words), 1)
+
+        if change_ratio > 0.2:
+            mutations.append({
+                'from_post': prev['post_id'],
+                'from_author': prev['author'],
+                'to_post': curr['post_id'],
+                'to_author': curr['author'],
+                'timestamp': curr['timestamp'],
+                'similarity': round(similarity, 3) if similarity else None,
+                'change_ratio': round(change_ratio, 3),
+                'words_added': len(added),
+                'words_removed': len(removed),
+                'mutation_type': 'major' if change_ratio > 0.5 else 'minor'
+            })
+
+    return mutations
+
+
+def attribute_original_source(narrative_id: str) -> Dict[str, Any]:
+    """
+    Attribute the original source of a narrative.
+    Returns the earliest post and author with confidence score.
+    """
+    conn = get_db()
+    cursor = conn.cursor()
+
+    # Get earliest post in narrative
+    cursor.execute("""
+        SELECT np.post_id, p.author_name, p.created_at, p.content, p.title
+        FROM narrative_posts np
+        JOIN posts p ON np.post_id = p.id
+        WHERE np.narrative_id = ?
+        ORDER BY p.created_at
+        LIMIT 1
+    """, (narrative_id,))
+
+    row = cursor.fetchone()
+
+    if not row:
+        conn.close()
+        return {'error': 'narrative not found'}
+
+    post_id, author, timestamp, content, title = row
+
+    # Get total posts in narrative for context
+    cursor.execute("""
+        SELECT COUNT(*), COUNT(DISTINCT p.author_name)
+        FROM narrative_posts np
+        JOIN posts p ON np.post_id = p.id
+        WHERE np.narrative_id = ?
+    """, (narrative_id,))
+
+    total_posts, unique_authors = cursor.fetchone()
+
+    conn.close()
+
+    return {
+        'narrative_id': narrative_id,
+        'original_post_id': post_id,
+        'original_author': author,
+        'original_timestamp': timestamp,
+        'original_title': title,
+        'original_content_preview': content[:200] if content else '',
+        'total_propagation': total_posts - 1,
+        'unique_propagators': unique_authors - 1,
+        'confidence': 0.9 if total_posts > 3 else 0.7
+    }
+
+
 if __name__ == "__main__":
     import sys
 
     if len(sys.argv) < 2:
-        print("Usage: python narratives.py [identify|roles NARRATIVE_ID|pushes|timeline NARRATIVE_ID|all]")
+        print("Usage: python narratives.py [identify|roles NARRATIVE_ID|pushes|timeline NARRATIVE_ID|tree NARRATIVE_ID|originality NARRATIVE_ID|mutations NARRATIVE_ID|source NARRATIVE_ID|all]")
         sys.exit(1)
 
     command = sys.argv[1]
@@ -731,6 +1012,36 @@ if __name__ == "__main__":
         print(f"  Posts: {timeline.get('total_posts')}")
         print(f"  Duration: {timeline.get('duration_hours')} hours")
         print(f"  Rate: {timeline.get('posts_per_hour')} posts/hour")
+
+    elif command == "tree" and len(sys.argv) >= 3:
+        narrative_id = sys.argv[2]
+        print(f"Building propagation tree for {narrative_id}...")
+        tree = build_propagation_tree(narrative_id)
+        if 'error' not in tree:
+            print(f"  Root: {tree['root']['author']}")
+            print(f"  Stats: {tree['stats']}")
+
+    elif command == "originality" and len(sys.argv) >= 3:
+        narrative_id = sys.argv[2]
+        print(f"Computing originality scores for {narrative_id}...")
+        scores = compute_originality_scores(narrative_id)
+        for post_id, score in list(scores.items())[:10]:
+            print(f"  {post_id}: {score}")
+
+    elif command == "mutations" and len(sys.argv) >= 3:
+        narrative_id = sys.argv[2]
+        print(f"Tracking mutations for {narrative_id}...")
+        mutations = track_narrative_mutations(narrative_id)
+        print(f"Found {len(mutations)} mutations:")
+        for m in mutations[:10]:
+            print(f"  {m['from_author']} -> {m['to_author']}: {m['mutation_type']}")
+
+    elif command == "source" and len(sys.argv) >= 3:
+        narrative_id = sys.argv[2]
+        print(f"Attributing source for {narrative_id}...")
+        source = attribute_original_source(narrative_id)
+        print(f"  Original author: {source.get('original_author')}")
+        print(f"  Propagation: {source.get('total_propagation')} posts")
 
     elif command == "all":
         print("Running all narrative analysis...")

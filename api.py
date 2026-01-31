@@ -78,6 +78,70 @@ try:
 except ImportError:
     ALERTS_AVAILABLE = False
 
+# LLM-specific analysis modules
+try:
+    from analysis.llm_fingerprints import (
+        compute_llm_fingerprint, load_llm_fingerprint, save_llm_fingerprint,
+        compare_llm_fingerprints, find_similar_llm_agents, PromptTemplateDetector
+    )
+    LLM_FINGERPRINTS_AVAILABLE = True
+except ImportError:
+    LLM_FINGERPRINTS_AVAILABLE = False
+
+try:
+    from analysis.same_operator import (
+        get_same_operator_candidates, get_operator_clusters,
+        SameOperatorDetector
+    )
+    SAME_OPERATOR_AVAILABLE = True
+except ImportError:
+    SAME_OPERATOR_AVAILABLE = False
+
+try:
+    from analysis.information_flow import (
+        get_laundering_events, get_circular_citations,
+        PropagationTreeBuilder
+    )
+    INFORMATION_FLOW_AVAILABLE = True
+except ImportError:
+    INFORMATION_FLOW_AVAILABLE = False
+
+try:
+    from analysis.persona_consistency import (
+        get_persona_profile, get_persona_shifts,
+        PersonaTracker, BeliefConsistencyScorer
+    )
+    PERSONA_AVAILABLE = True
+except ImportError:
+    PERSONA_AVAILABLE = False
+
+try:
+    from analysis.authorship import (
+        get_author_clusters, get_copy_chains,
+        AuthorCentroidAnalyzer, CopyPasteChainDetector
+    )
+    AUTHORSHIP_AVAILABLE = True
+except ImportError:
+    AUTHORSHIP_AVAILABLE = False
+
+try:
+    from analysis.narratives import (
+        build_propagation_tree, compute_originality_scores,
+        track_narrative_mutations, attribute_original_source
+    )
+    NARRATIVES_ENHANCED = True
+except ImportError:
+    NARRATIVES_ENHANCED = False
+
+try:
+    from analysis.social_dynamics import (
+        get_content_virality, get_tool_adoption, get_author_influence,
+        ViralityAnalyzer, AdoptionTracker, InfluenceAnalyzer
+    )
+    SOCIAL_DYNAMICS_AVAILABLE = True
+except ImportError:
+    SOCIAL_DYNAMICS_AVAILABLE = False
+
 # Try to import sentence-transformers
 try:
     from sentence_transformers import SentenceTransformer
@@ -745,6 +809,55 @@ async def trigger_analysis():
     analyzer.run_analysis_cycle()
     return {"status": "complete", "insights_count": len(analyzer.insights_cache)}
 
+@app.get("/api/embeddings/status")
+async def get_embedding_status():
+    """Get current embedding coverage status"""
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT COUNT(*) FROM posts")
+    total_posts = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM posts WHERE has_embedding = TRUE")
+    embedded_posts = cursor.fetchone()[0]
+
+    cursor.execute("SELECT COUNT(*) FROM comments")
+    total_comments = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM comments WHERE has_embedding = TRUE")
+    embedded_comments = cursor.fetchone()[0]
+
+    conn.close()
+
+    total = total_posts + total_comments
+    embedded = embedded_posts + embedded_comments
+    coverage = (embedded / total * 100) if total > 0 else 0
+
+    return {
+        "posts": {"total": total_posts, "embedded": embedded_posts},
+        "comments": {"total": total_comments, "embedded": embedded_comments},
+        "total": {"total": total, "embedded": embedded},
+        "coverage_percent": round(coverage, 1),
+        "missing": total - embedded,
+        "embeddings_available": EMBEDDINGS_AVAILABLE
+    }
+
+@app.post("/api/admin/generate-embeddings", dependencies=[Depends(verify_admin_key)])
+async def trigger_embeddings():
+    """Manually trigger embedding generation (admin only)"""
+    if not EMBEDDINGS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Embeddings module not available")
+
+    from analysis.embeddings import generate_embeddings
+    generate_embeddings()
+
+    # Return new status
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM embeddings")
+    total_embeddings = cursor.fetchone()[0]
+    conn.close()
+
+    return {"status": "complete", "total_embeddings": total_embeddings}
+
 # Export endpoints
 from fastapi.responses import Response
 import csv
@@ -1160,6 +1273,410 @@ async def admin_resolve_alert(alert_id: int, notes: str = ""):
     if not success:
         raise HTTPException(status_code=404, detail="Alert not found")
     return {"status": "resolved", "alert_id": alert_id}
+
+# ============================================================================
+# LLM-Specific Analysis Endpoints
+# ============================================================================
+
+# Same-Operator Detection
+@app.get("/api/insights/same-operator-candidates")
+async def get_same_op_candidates(limit: int = 50, min_score: float = 0.6):
+    """Get pairs of agents likely run by the same operator"""
+    if not SAME_OPERATOR_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Same-operator detection not available")
+    candidates = get_same_operator_candidates(limit=limit, min_score=min_score)
+    return {'candidates': candidates, 'total': len(candidates)}
+
+@app.post("/api/compare-operators")
+async def compare_two_operators(request: CompareRequest):
+    """Detailed same-operator comparison of two agents"""
+    if not SAME_OPERATOR_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Same-operator detection not available")
+    detector = SameOperatorDetector()
+    similarity = detector.compute_operator_similarity(request.author1, request.author2)
+    return {
+        'author1': similarity.author1,
+        'author2': similarity.author2,
+        'overall_score': similarity.overall_score,
+        'template_similarity': similarity.template_similarity,
+        'activation_overlap': similarity.activation_overlap,
+        'topic_alignment': similarity.topic_alignment,
+        'never_concurrent': similarity.never_concurrent,
+        'evidence': similarity.evidence
+    }
+
+@app.get("/api/insights/operator-clusters")
+async def get_op_clusters(limit: int = 20):
+    """Get clusters of agents grouped by operator"""
+    if not SAME_OPERATOR_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Same-operator detection not available")
+    clusters = get_operator_clusters(limit=limit)
+    return {'clusters': clusters, 'total': len(clusters)}
+
+# Information Flow
+@app.get("/api/insights/information-laundering")
+async def get_laundering_detections(limit: int = 50):
+    """Get detected information laundering events"""
+    if not INFORMATION_FLOW_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Information flow analysis not available")
+    events = get_laundering_events(limit=limit)
+    return {'events': events, 'total': len(events)}
+
+@app.get("/api/insights/circular-citations")
+async def get_circular_citation_detections(limit: int = 50):
+    """Get detected circular citation patterns"""
+    if not INFORMATION_FLOW_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Information flow analysis not available")
+    circles = get_circular_citations(limit=limit)
+    return {'circles': circles, 'total': len(circles)}
+
+@app.get("/api/content/{content_id}/propagation")
+async def get_content_propagation(content_id: str):
+    """Get propagation tree for content"""
+    if not INFORMATION_FLOW_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Information flow analysis not available")
+    builder = PropagationTreeBuilder()
+    tree = builder.build_propagation_tree(content_id)
+    if tree is None:
+        raise HTTPException(status_code=404, detail="Content not found or no propagation")
+    return {
+        'claim_id': tree.claim_id,
+        'root_content_id': tree.root_content_id,
+        'root_author': tree.root_author,
+        'depth': tree.depth,
+        'breadth': tree.breadth,
+        'total_reach': tree.total_reach,
+        'mutation_count': tree.mutation_count,
+        'nodes': {k: {'content_id': v.content_id, 'author': v.author,
+                      'timestamp': v.timestamp, 'similarity': v.similarity,
+                      'parent_id': v.parent_id, 'role': v.role}
+                 for k, v in tree.nodes.items()}
+    }
+
+@app.get("/api/content/{content_id}/originality")
+async def get_content_originality(content_id: str):
+    """Get originality score for content"""
+    if not INFORMATION_FLOW_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Information flow analysis not available")
+    builder = PropagationTreeBuilder()
+    score = builder.compute_originality_score(content_id)
+    return {'content_id': content_id, 'originality_score': score}
+
+# Persona Consistency
+@app.get("/api/agent/{author_name}/persona-consistency")
+async def get_agent_persona_consistency(author_name: str):
+    """Get persona consistency score and profile"""
+    if not PERSONA_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Persona analysis not available")
+    profile = get_persona_profile(author_name)
+    if not profile:
+        # Compute fresh
+        tracker = PersonaTracker()
+        built_profile = tracker.build_belief_profile(author_name)
+        profile = {
+            'author_name': built_profile.author_name,
+            'stances': {k: {'position': v.position, 'confidence': v.confidence}
+                       for k, v in built_profile.stances.items()},
+            'consistency_score': built_profile.consistency_score,
+            'computed_at': built_profile.computed_at
+        }
+    return profile
+
+@app.get("/api/agent/{author_name}/belief-profile")
+async def get_agent_belief_profile(author_name: str):
+    """Get extracted belief profile for an agent"""
+    if not PERSONA_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Persona analysis not available")
+    tracker = PersonaTracker()
+    profile = tracker.build_belief_profile(author_name)
+    return {
+        'author_name': profile.author_name,
+        'stances': {k: {'position': v.position, 'confidence': v.confidence,
+                       'evidence': v.evidence[:3]}
+                   for k, v in profile.stances.items()},
+        'consistency_score': profile.consistency_score
+    }
+
+@app.get("/api/agent/{author_name}/contradictions")
+async def get_agent_contradictions(author_name: str):
+    """Get detected contradictions for an agent"""
+    if not PERSONA_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Persona analysis not available")
+    tracker = PersonaTracker()
+    contradictions = tracker.detect_contradictions(author_name)
+    return {
+        'author_name': author_name,
+        'contradictions': [
+            {
+                'statement1': c.statement1,
+                'statement2': c.statement2,
+                'topic': c.topic,
+                'timestamp1': c.timestamp1,
+                'timestamp2': c.timestamp2,
+                'score': c.contradiction_score
+            }
+            for c in contradictions[:20]
+        ],
+        'total': len(contradictions)
+    }
+
+@app.get("/api/insights/persona-shifts")
+async def get_persona_shift_detections(limit: int = 50):
+    """Get agents with sudden persona shifts"""
+    if not PERSONA_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Persona analysis not available")
+    shifts = get_persona_shifts(limit=limit)
+    return {'shifts': shifts, 'total': len(shifts)}
+
+# Enhanced Narrative Endpoints
+@app.get("/api/narrative/{narrative_id}/propagation-tree")
+async def get_narrative_propagation_tree(narrative_id: str):
+    """Get full propagation tree for a narrative"""
+    if not NARRATIVES_ENHANCED:
+        raise HTTPException(status_code=503, detail="Enhanced narratives not available")
+    tree = build_propagation_tree(narrative_id)
+    return tree
+
+@app.get("/api/narrative/{narrative_id}/originality")
+async def get_narrative_originality(narrative_id: str):
+    """Get originality scores for narrative posts"""
+    if not NARRATIVES_ENHANCED:
+        raise HTTPException(status_code=503, detail="Enhanced narratives not available")
+    scores = compute_originality_scores(narrative_id)
+    return {'narrative_id': narrative_id, 'scores': scores}
+
+@app.get("/api/narrative/{narrative_id}/mutations")
+async def get_narrative_mutations(narrative_id: str):
+    """Get how narrative mutated during propagation"""
+    if not NARRATIVES_ENHANCED:
+        raise HTTPException(status_code=503, detail="Enhanced narratives not available")
+    mutations = track_narrative_mutations(narrative_id)
+    return {'narrative_id': narrative_id, 'mutations': mutations, 'total': len(mutations)}
+
+@app.get("/api/narrative/{narrative_id}/source")
+async def get_narrative_source(narrative_id: str):
+    """Get original source of a narrative"""
+    if not NARRATIVES_ENHANCED:
+        raise HTTPException(status_code=503, detail="Enhanced narratives not available")
+    return attribute_original_source(narrative_id)
+
+# LLM Fingerprints
+@app.get("/api/agent/{author_name}/llm-fingerprint")
+async def get_agent_llm_fingerprint(author_name: str):
+    """Get LLM-specific fingerprint for an agent"""
+    if not LLM_FINGERPRINTS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="LLM fingerprints not available")
+    fp = load_llm_fingerprint(author_name)
+    if not fp:
+        # Compute fresh
+        fp_vec = compute_llm_fingerprint(author_name)
+        save_llm_fingerprint(author_name, fp_vec)
+        computed_at = datetime.now()
+    else:
+        fp_vec, computed_at = fp
+    return {
+        'author_name': author_name,
+        'fingerprint_dims': len(fp_vec),
+        'fingerprint_norm': float(np.linalg.norm(fp_vec)),
+        'computed_at': computed_at.isoformat() if hasattr(computed_at, 'isoformat') else str(computed_at)
+    }
+
+@app.post("/api/compare-llm-fingerprints")
+async def compare_llm_fps(request: CompareRequest):
+    """Compare LLM fingerprints between two agents"""
+    if not LLM_FINGERPRINTS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="LLM fingerprints not available")
+    return compare_llm_fingerprints(request.author1, request.author2)
+
+@app.get("/api/agent/{author_name}/similar-llm")
+async def get_similar_by_llm_fingerprint(author_name: str, top_k: int = 10):
+    """Find agents with similar LLM fingerprints"""
+    if not LLM_FINGERPRINTS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="LLM fingerprints not available")
+    similar = find_similar_llm_agents(author_name, top_k=top_k)
+    return {
+        'author': author_name,
+        'similar_agents': [
+            {'author': other, 'similarity': sim, 'components': comp}
+            for other, sim, comp in similar
+        ]
+    }
+
+@app.get("/api/insights/template-clusters")
+async def get_template_clusters():
+    """Get clusters of agents with similar prompt templates"""
+    if not LLM_FINGERPRINTS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="LLM fingerprints not available")
+    detector = PromptTemplateDetector()
+    clusters = detector.cluster_by_template()
+    return {
+        'clusters': [
+            {
+                'cluster_id': c.cluster_id,
+                'members': c.members,
+                'avg_similarity': c.avg_similarity,
+                'detected_at': c.detected_at
+            }
+            for c in clusters
+        ],
+        'total': len(clusters)
+    }
+
+# Authorship Analysis
+@app.get("/api/insights/author-clusters")
+async def get_authorship_clusters(limit: int = 20):
+    """Get clusters of semantically similar authors"""
+    if not AUTHORSHIP_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Authorship analysis not available")
+    clusters = get_author_clusters(limit=limit)
+    return {'clusters': clusters, 'total': len(clusters)}
+
+@app.get("/api/insights/copy-chains")
+async def get_detected_copy_chains(limit: int = 50):
+    """Get detected copy-paste chains"""
+    if not AUTHORSHIP_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Authorship analysis not available")
+    chains = get_copy_chains(limit=limit)
+    return {'chains': chains, 'total': len(chains)}
+
+@app.get("/api/insights/near-duplicate-authors")
+async def get_near_duplicate_authors(threshold: float = 0.95):
+    """Get author pairs with nearly identical content centroids"""
+    if not AUTHORSHIP_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Authorship analysis not available")
+    analyzer = AuthorCentroidAnalyzer()
+    duplicates = analyzer.find_semantic_near_duplicates(threshold=threshold)
+    return {
+        'duplicates': [
+            {'author1': a1, 'author2': a2, 'similarity': sim}
+            for a1, a2, sim in duplicates
+        ],
+        'total': len(duplicates)
+    }
+
+# ============================================================================
+# Health check with background status
+# ============================================================================
+# Social Dynamics Endpoints (Virality, Adoption, Influence)
+# ============================================================================
+
+@app.get("/api/content/{content_id}/virality")
+async def get_virality_metrics(content_id: str):
+    """Get virality metrics for content (cascade size, spread velocity)"""
+    if not SOCIAL_DYNAMICS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Social dynamics analysis not available")
+    metrics = get_content_virality(content_id)
+    if not metrics:
+        raise HTTPException(status_code=404, detail="Content not found or no virality data")
+    return metrics
+
+@app.get("/api/insights/viral-content")
+async def get_viral_content_list(min_cascade: int = 2, days: int = 30):
+    """Get list of viral content (content that triggered cascades)"""
+    if not SOCIAL_DYNAMICS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Social dynamics analysis not available")
+    analyzer = ViralityAnalyzer()
+    viral = analyzer.get_viral_content(min_cascade_size=min_cascade, days=days)
+    return {
+        'viral_content': [
+            {
+                'content_id': v.content_id,
+                'cascade_size': v.cascade_size,
+                'unique_authors': v.unique_authors,
+                'spread_velocity': v.spread_velocity,
+                'time_to_first_similar': v.time_to_first_similar
+            }
+            for v in viral[:50]
+        ],
+        'total': len(viral)
+    }
+
+@app.get("/api/tool-adoption/{topic}")
+async def get_topic_adoption(topic: str):
+    """Get adoption curve for a tool/topic"""
+    if not SOCIAL_DYNAMICS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Social dynamics analysis not available")
+    curve = get_tool_adoption(topic)
+    if not curve:
+        raise HTTPException(status_code=404, detail=f"No data for topic: {topic}")
+    return curve
+
+@app.get("/api/insights/tool-adoption")
+async def get_all_tool_adoption():
+    """Get adoption curves for all tracked tools"""
+    if not SOCIAL_DYNAMICS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Social dynamics analysis not available")
+    tracker = AdoptionTracker()
+    adoption = tracker.get_all_tool_adoption()
+    return {
+        'tools': {
+            k: {
+                'topic': v.topic,
+                'total_mentions': v.total_mentions,
+                'unique_authors': v.unique_authors,
+                'growth_rate': v.growth_rate,
+                'first_mention': v.first_mention
+            }
+            for k, v in adoption.items()
+        },
+        'total_topics': len(adoption)
+    }
+
+@app.get("/api/insights/trending-tools")
+async def get_trending_tools(min_mentions: int = 3, growth_threshold: float = 0.2):
+    """Get tools/topics with significant recent growth"""
+    if not SOCIAL_DYNAMICS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Social dynamics analysis not available")
+    tracker = AdoptionTracker()
+    trending = tracker.detect_trending_topics(min_mentions, growth_threshold)
+    return {
+        'trending': [
+            {
+                'topic': t.topic,
+                'growth_rate': t.growth_rate,
+                'total_mentions': t.total_mentions,
+                'unique_authors': t.unique_authors
+            }
+            for t in trending
+        ],
+        'total': len(trending)
+    }
+
+@app.get("/api/agent/{author_name}/influence")
+async def get_agent_influence_score(author_name: str):
+    """Get influence score for an agent"""
+    if not SOCIAL_DYNAMICS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Social dynamics analysis not available")
+    return get_author_influence(author_name)
+
+@app.get("/api/insights/top-influencers")
+async def get_network_top_influencers(limit: int = 20):
+    """Get top influencers in the network"""
+    if not SOCIAL_DYNAMICS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Social dynamics analysis not available")
+    analyzer = InfluenceAnalyzer()
+    top = analyzer.get_top_influencers(limit=limit)
+    return {
+        'influencers': [
+            {
+                'author': s.author_name,
+                'influence_score': s.influence_score,
+                'cascade_triggers': s.cascade_triggers,
+                'follower_ratio': s.follower_ratio,
+                'avg_cascade_size': s.avg_cascade_size
+            }
+            for s in top
+        ],
+        'total': len(top)
+    }
+
+@app.get("/api/compare-influence/{author1}/{author2}")
+async def compare_influence_between(author1: str, author2: str):
+    """Compare temporal influence between two agents"""
+    if not SOCIAL_DYNAMICS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Social dynamics analysis not available")
+    analyzer = InfluenceAnalyzer()
+    return analyzer.detect_temporal_influence(author1, author2)
 
 # ============================================================================
 # Health check with background status

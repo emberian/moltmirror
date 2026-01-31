@@ -74,17 +74,61 @@ except ImportError:
     def run_all_alert_generation(): return {'error': 'not available'}
     def get_alert_summary(): return {'error': 'not available'}
 
+# LLM-specific analysis modules
+try:
+    from analysis.llm_fingerprints import compute_all_llm_fingerprints
+    LLM_FINGERPRINTS_AVAILABLE = True
+except ImportError:
+    LLM_FINGERPRINTS_AVAILABLE = False
+    def compute_all_llm_fingerprints(): return {'error': 'not available'}
+
+try:
+    from analysis.same_operator import run_same_operator_detection
+    SAME_OPERATOR_AVAILABLE = True
+except ImportError:
+    SAME_OPERATOR_AVAILABLE = False
+    def run_same_operator_detection(): return {'error': 'not available'}
+
+try:
+    from analysis.information_flow import run_information_flow_analysis
+    INFORMATION_FLOW_AVAILABLE = True
+except ImportError:
+    INFORMATION_FLOW_AVAILABLE = False
+    def run_information_flow_analysis(): return {'error': 'not available'}
+
+try:
+    from analysis.persona_consistency import run_persona_analysis
+    PERSONA_AVAILABLE = True
+except ImportError:
+    PERSONA_AVAILABLE = False
+    def run_persona_analysis(): return {'error': 'not available'}
+
+try:
+    from analysis.authorship import run_authorship_analysis
+    AUTHORSHIP_AVAILABLE = True
+except ImportError:
+    AUTHORSHIP_AVAILABLE = False
+    def run_authorship_analysis(): return {'error': 'not available'}
+
+try:
+    from analysis.social_dynamics import run_social_dynamics_analysis
+    SOCIAL_DYNAMICS_AVAILABLE = True
+except ImportError:
+    SOCIAL_DYNAMICS_AVAILABLE = False
+    def run_social_dynamics_analysis(): return {'error': 'not available'}
+
 DB_PATH = Path(os.getenv("MOLTMIRROR_DB_PATH", "analysis.db"))
 INSIGHTS_PATH = Path("insights_cache.json")
 
 class BackgroundAnalyzer:
     """Continuous background analysis of Moltbook data"""
-    
+
     def __init__(self, db_path: Path = DB_PATH):
         self.db_path = db_path
         self.running = False
         self.last_analysis = {}
         self.load_insights()
+        self._check_embedding_coverage()
     
     def load_insights(self):
         """Load cached insights"""
@@ -93,7 +137,42 @@ class BackgroundAnalyzer:
                 self.insights_cache = json.load(f)
         else:
             self.insights_cache = {}
-    
+
+    def _check_embedding_coverage(self):
+        """Check embedding coverage and trigger generation if below threshold"""
+        if not EMBEDDINGS_AVAILABLE:
+            return
+
+        try:
+            conn = self.get_db()
+            cursor = conn.cursor()
+
+            cursor.execute("SELECT COUNT(*) FROM posts")
+            total_posts = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM comments")
+            total_comments = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM embeddings")
+            total_embeddings = cursor.fetchone()[0]
+
+            conn.close()
+
+            total_content = total_posts + total_comments
+            if total_content == 0:
+                return
+
+            coverage = (total_embeddings / total_content) * 100
+            missing = total_content - total_embeddings
+
+            # If coverage is below 90% and we have significant missing content, generate
+            if coverage < 90 and missing > 100:
+                print(f"[Startup] Embedding coverage is {coverage:.1f}% ({missing} missing). Generating...")
+                generate_embeddings()
+                print(f"[Startup] Embedding generation complete.")
+            elif missing > 0:
+                print(f"[Startup] Embedding coverage: {coverage:.1f}% ({missing} missing)")
+        except Exception as e:
+            print(f"[Startup] Error checking embedding coverage: {e}")
+
     def save_insights(self):
         """Save insights to disk"""
         with open(INSIGHTS_PATH, 'w') as f:
@@ -811,6 +890,44 @@ class BackgroundAnalyzer:
             return {'status': 'not_available'}
         return get_alert_summary()
 
+    # LLM-Specific Analysis Methods
+
+    def compute_llm_fingerprints(self) -> Dict:
+        """Compute LLM-specific fingerprints for all agents"""
+        if not LLM_FINGERPRINTS_AVAILABLE:
+            return {'status': 'not_available'}
+        return compute_all_llm_fingerprints()
+
+    def detect_same_operators(self) -> Dict:
+        """Detect agents run by the same operator"""
+        if not SAME_OPERATOR_AVAILABLE:
+            return {'status': 'not_available'}
+        return run_same_operator_detection()
+
+    def run_information_flow(self) -> Dict:
+        """Track information flow and detect laundering"""
+        if not INFORMATION_FLOW_AVAILABLE:
+            return {'status': 'not_available'}
+        return run_information_flow_analysis()
+
+    def run_persona_analysis(self) -> Dict:
+        """Run persona consistency analysis"""
+        if not PERSONA_AVAILABLE:
+            return {'status': 'not_available'}
+        return run_persona_analysis()
+
+    def run_authorship_analysis(self) -> Dict:
+        """Run authorship classification"""
+        if not AUTHORSHIP_AVAILABLE:
+            return {'status': 'not_available'}
+        return run_authorship_analysis()
+
+    def run_social_dynamics(self) -> Dict:
+        """Run social dynamics analysis (virality, adoption, influence)"""
+        if not SOCIAL_DYNAMICS_AVAILABLE:
+            return {'status': 'not_available'}
+        return run_social_dynamics_analysis()
+
     def map_topic_relationships(self) -> Dict:
         """Build a graph of topic co-occurrences"""
         conn = self.get_db()
@@ -996,13 +1113,25 @@ class BackgroundAnalyzer:
                     sync_result['errors'].append(f"Import post error: {str(e)}")
 
             # Fetch comments for new posts
+            base_delay = 1.0  # Gentle default delay
+            current_delay = base_delay
+            max_delay = 30.0
+
             for post in new_posts[:50]:  # Limit to avoid too many requests
                 try:
                     resp = session.get(
                         f"{BASE_URL}/api/v1/posts/{post['id']}",
                         timeout=30
                     )
-                    if resp.status_code == 200:
+
+                    # Backoff on rate limits or server errors
+                    if resp.status_code in (429, 503, 502, 504):
+                        current_delay = min(current_delay * 2, max_delay)
+                        sync_result['errors'].append(f"Rate limited ({resp.status_code}), backing off to {current_delay}s")
+                        time.sleep(current_delay)
+                        continue
+                    elif resp.status_code == 200:
+                        current_delay = base_delay  # Reset on success
                         detail = resp.json()
                         comments = detail.get('comments', [])
 
@@ -1026,7 +1155,7 @@ class BackgroundAnalyzer:
                             ))
                             sync_result['new_comments'] += 1
 
-                    time.sleep(0.1)  # Be polite
+                    time.sleep(current_delay)  # Gentle rate limiting
                 except Exception as e:
                     sync_result['errors'].append(f"Fetch comments error: {str(e)}")
 
@@ -1162,6 +1291,13 @@ class BackgroundAnalyzer:
             ('ic_narratives', self.run_narrative_analysis, 120),  # Heavy
             ('ic_alerts', self.generate_alerts, 10),  # Frequent, lightweight
             ('ic_alert_summary', self.get_alert_overview, 10),
+            # LLM-specific analyses
+            ('llm_fingerprints', self.compute_llm_fingerprints, 60),  # Every hour
+            ('same_operators', self.detect_same_operators, 30),  # Every 30 min
+            ('information_flow', self.run_information_flow, 30),  # Every 30 min
+            ('persona_consistency', self.run_persona_analysis, 45),  # Every 45 min
+            ('authorship', self.run_authorship_analysis, 90),  # Every 90 min
+            ('social_dynamics', self.run_social_dynamics, 60),  # Every hour
         ]
         
         for name, func, interval in analyses:

@@ -310,6 +310,312 @@ def init_database():
         )
     """)
 
+    # Statistical baselines
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS statistical_baselines (
+            baseline_name TEXT PRIMARY KEY,
+            computed_at TEXT,
+            sample_count INTEGER,
+            mean REAL,
+            std REAL,
+            percentiles TEXT,
+            sample_hash TEXT
+        )
+    """)
+
+    # Temporal V2 profiles
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS temporal_v2_profiles (
+            author_name TEXT PRIMARY KEY,
+            computed_at TEXT,
+            circadian_entropy REAL,
+            peak_hour INTEGER,
+            sleep_quality_score REAL,
+            inter_event_cv REAL,
+            synthetic_timing_score REAL,
+            raw_data TEXT
+        )
+    """)
+
+    # Temporal V2 change points
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS temporal_v2_changes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            author_name TEXT,
+            change_date TEXT,
+            before_mean REAL,
+            after_mean REAL,
+            magnitude REAL,
+            detected_at TEXT
+        )
+    """)
+
+    # Adversarial analysis results
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS adversarial_analysis (
+            author_name TEXT PRIMARY KEY,
+            computed_at TEXT,
+            sleeper_detected BOOLEAN,
+            artificial_jitter_detected BOOLEAN,
+            fake_sleep_detected BOOLEAN,
+            laundering_detected BOOLEAN,
+            rotation_detected BOOLEAN,
+            overall_risk_level TEXT,
+            raw_data TEXT
+        )
+    """)
+
+    # Lifecycle phases
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS lifecycle_phases (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            author_name TEXT,
+            phase TEXT,
+            start_date TEXT,
+            end_date TEXT,
+            activity_count INTEGER,
+            characteristics TEXT
+        )
+    """)
+
+    # LLM-specific fingerprints (256-dim)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS llm_fingerprints (
+            author_name TEXT PRIMARY KEY,
+            prompt_template_sig BLOB,
+            model_family_markers BLOB,
+            operator_infra_sig BLOB,
+            semantic_consistency BLOB,
+            interaction_dynamics BLOB,
+            originality_metrics BLOB,
+            full_fingerprint BLOB,
+            computed_at TEXT
+        )
+    """)
+
+    # LLM fingerprint history
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS llm_fingerprint_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            author_name TEXT,
+            full_fingerprint BLOB,
+            computed_at TEXT
+        )
+    """)
+
+    # Same-operator candidates
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS same_operator_candidates (
+            author1 TEXT,
+            author2 TEXT,
+            overall_score REAL,
+            template_similarity REAL,
+            infrastructure_correlation REAL,
+            activation_overlap REAL,
+            evidence TEXT,
+            detected_at TEXT,
+            PRIMARY KEY (author1, author2)
+        )
+    """)
+
+    # Operator clusters
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS operator_clusters (
+            cluster_id TEXT PRIMARY KEY,
+            members TEXT,
+            evidence_summary TEXT,
+            confidence REAL,
+            detected_at TEXT
+        )
+    """)
+
+    # Information flow traces
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS information_traces (
+            claim_id TEXT PRIMARY KEY,
+            claim_text TEXT,
+            claim_embedding BLOB,
+            original_author TEXT,
+            propagation_tree TEXT,
+            mutation_log TEXT,
+            computed_at TEXT
+        )
+    """)
+
+    # Laundering events
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS laundering_events (
+            event_id TEXT PRIMARY KEY,
+            original_author TEXT,
+            intermediate_authors TEXT,
+            final_authors TEXT,
+            claim_text TEXT,
+            confidence REAL,
+            evidence TEXT,
+            detected_at TEXT
+        )
+    """)
+
+    # Circular citations
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS circular_citations (
+            cycle_id TEXT PRIMARY KEY,
+            authors TEXT,
+            content_ids TEXT,
+            similarity_scores TEXT,
+            detected_at TEXT
+        )
+    """)
+
+    # Persona profiles
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS persona_profiles (
+            author_name TEXT PRIMARY KEY,
+            belief_embeddings BLOB,
+            consistency_score REAL,
+            contradictions TEXT,
+            drift_timeline TEXT,
+            computed_at TEXT
+        )
+    """)
+
+    # Stance vectors
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS stance_vectors (
+            author_name TEXT,
+            topic TEXT,
+            position REAL,
+            confidence REAL,
+            evidence TEXT,
+            computed_at TEXT,
+            PRIMARY KEY (author_name, topic)
+        )
+    """)
+
+    # Persona shifts
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS persona_shifts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            author_name TEXT,
+            shift_time TEXT,
+            magnitude REAL,
+            before_profile TEXT,
+            after_profile TEXT,
+            likely_cause TEXT,
+            detected_at TEXT
+        )
+    """)
+
+    # Contradictions
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS contradictions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            author_name TEXT,
+            statement1 TEXT,
+            statement2 TEXT,
+            topic TEXT,
+            timestamp1 TEXT,
+            timestamp2 TEXT,
+            contradiction_score REAL,
+            detected_at TEXT
+        )
+    """)
+
+    # Author centroids
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS author_centroids (
+            author_name TEXT PRIMARY KEY,
+            centroid BLOB,
+            post_count INTEGER,
+            computed_at TEXT
+        )
+    """)
+
+    # Author clusters
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS author_clusters (
+            cluster_id TEXT PRIMARY KEY,
+            members TEXT,
+            centroid BLOB,
+            cohesion REAL,
+            created_at TEXT
+        )
+    """)
+
+    # Copy chains
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS copy_chains (
+            chain_id TEXT PRIMARY KEY,
+            original_content_id TEXT,
+            original_author TEXT,
+            copies TEXT,
+            chain_length INTEGER,
+            similarity_scores TEXT,
+            detected_at TEXT
+        )
+    """)
+
+    # Authorship model
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS authorship_model (
+            model_id TEXT PRIMARY KEY,
+            model_type TEXT,
+            model_data BLOB,
+            label_encoder BLOB,
+            accuracy REAL,
+            trained_at TEXT
+        )
+    """)
+
+    # Template clusters
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS template_clusters (
+            cluster_id TEXT PRIMARY KEY,
+            members TEXT,
+            template_signature BLOB,
+            avg_similarity REAL,
+            detected_at TEXT
+        )
+    """)
+
+    # Model feature cache
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS model_feature_cache (
+            author_name TEXT PRIMARY KEY,
+            features BLOB,
+            computed_at TEXT
+        )
+    """)
+
+    # Create indices for efficient querying
+
+    # Critical indexes for core tables (these are hit constantly)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author_name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_posts_submolt ON posts(submolt)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_posts_has_embedding ON posts(has_embedding)")
+
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_comments_author ON comments(author_name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_comments_created ON comments(created_at)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_comments_has_embedding ON comments(has_embedding)")
+
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_embeddings_type ON embeddings(content_type)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_embeddings_content ON embeddings(content_id, content_type)")
+
+    # Analysis table indexes
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_llm_fp_author ON llm_fingerprints(author_name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_same_op_score ON same_operator_candidates(overall_score)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_laundering_conf ON laundering_events(confidence)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_persona_author ON persona_profiles(author_name)")
+
+    # Graph and temporal indexes
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_graph_metrics_author ON graph_metrics(author_name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_temporal_corr_authors ON temporal_correlations(author1, author2)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_bursts_start ON activity_bursts(burst_start)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_narratives_status ON narratives(status)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_narrative_posts_narrative ON narrative_posts(narrative_id)")
+
     conn.commit()
     conn.close()
     print(f"Database initialized at {DB_PATH}")

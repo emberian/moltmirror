@@ -27,8 +27,9 @@ seen_posts = {}
 all_comments = []
 
 def fetch_json(endpoint, params=None, retries=3):
-    """Fetch JSON from an endpoint with retries"""
+    """Fetch JSON from an endpoint with retries and backoff"""
     url = urljoin(BASE_URL, endpoint)
+    delay = 1.0
     for attempt in range(retries):
         try:
             resp = SESSION.get(url, params=params, timeout=30)
@@ -36,12 +37,19 @@ def fetch_json(endpoint, params=None, retries=3):
                 return resp.json()
             elif resp.status_code == 404:
                 return None
+            elif resp.status_code in (429, 503, 502, 504):
+                # Rate limited or server overloaded
+                delay = min(delay * 2, 30)
+                print(f"  Rate limited ({resp.status_code}), waiting {delay}s...")
+                time.sleep(delay)
             else:
                 print(f"  HTTP {resp.status_code} for {url}")
+                time.sleep(1.0)
         except Exception as e:
             print(f"  Error fetching {url}: {e}")
             if attempt < retries - 1:
-                time.sleep(1)
+                time.sleep(delay)
+                delay = min(delay * 2, 30)
     return None
 
 def fetch_html(path):
@@ -163,8 +171,8 @@ def archive_submolts():
         if html:
             save_html(html, f'submolts/{name}.html')
 
-        # Small delay to be nice
-        time.sleep(0.1)
+        # Gentle rate limiting
+        time.sleep(1.0)
 
     return all_posts
 
@@ -256,7 +264,7 @@ def archive_individual_posts():
             elif isinstance(comments, list):
                 all_comments.extend(comments)
 
-        time.sleep(0.05)
+        time.sleep(1.0)  # Gentle rate limiting
 
 def archive_users():
     """Archive all discovered users"""
