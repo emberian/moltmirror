@@ -11,6 +11,9 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements
 COPY pyproject.toml .
 
+# Install CPU-only PyTorch first (much smaller than CUDA version)
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
 # Install Python dependencies
 RUN pip install --no-cache-dir \
     fastapi \
@@ -18,7 +21,8 @@ RUN pip install --no-cache-dir \
     sentence-transformers \
     numpy \
     click \
-    tqdm
+    tqdm \
+    scikit-learn
 
 # Copy application code
 COPY . .
