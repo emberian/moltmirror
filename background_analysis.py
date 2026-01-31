@@ -13,6 +13,7 @@ import json
 import time
 import threading
 from typing import Dict, List, Any, Optional
+import os
 
 # Import embedding generation
 try:
@@ -21,7 +22,7 @@ except ImportError:
     EMBEDDINGS_AVAILABLE = False
     def generate_embeddings(): pass
 
-DB_PATH = Path("analysis.db")
+DB_PATH = Path(os.getenv("MOLTMIRROR_DB_PATH", "analysis.db"))
 INSIGHTS_PATH = Path("insights_cache.json")
 
 class BackgroundAnalyzer:
