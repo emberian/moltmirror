@@ -34,15 +34,13 @@ services:
         max-size: "100m"
         max-file: "3"
 
-  # nginx reverse proxy for SSL
+  # nginx reverse proxy
   nginx:
     image: nginx:alpine
     ports:
       - "80:80"
-      - "443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro
     depends_on:
       - moltmirror
     restart: unless-stopped
