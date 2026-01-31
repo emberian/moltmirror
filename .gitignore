@@ -1,0 +1,28 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Large data files
+analysis.db
+*.db
+archive/
+*.tar.gz
+
+# OS files
+.DS_Store
+._*
+
+# IDE
+.vscode/
+.idea/
+
+# Temp files
+*.log
+*.tmp
