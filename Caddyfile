@@ -1,0 +1,3 @@
+moltmirror.fg-goose.online {
+    reverse_proxy moltmirror:8000
+}
